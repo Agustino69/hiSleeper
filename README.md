@@ -31,6 +31,25 @@ Todo se guarda en el dispositivo (IndexedDB): grabaciones, objetivos, diario y a
 - **Detector de movimiento** (acelerómetro, móvil sobre el colchón): pausa las pistas y baja el volumen el resto de la noche.
 - Pantalla negra con *Wake Lock* para que el navegador no detenga el audio; despertador suave opcional.
 
+## App de Android (APK)
+
+Además de la versión web, hiSleeper se empaqueta como app nativa de Android con [Capacitor](https://capacitorjs.com). La app nativa añade:
+
+- **Audio con la pantalla apagada**: un servicio en primer plano (`SleepService`, tipo *mediaPlayback*) con *wake lock* parcial mantiene la app viva toda la noche. Se ve una notificación «sesión nocturna».
+- **Voz sintética del sistema** (plugin `@capacitor-community/text-to-speech`), porque el WebView de Android no trae la Web Speech API.
+- La pantalla solo se mantiene encendida si el detector de movimiento está activo (el acelerómetro solo llega con la pantalla encendida).
+
+**Instalar:** descarga `hiSleeper.apk` de la release [`apk-latest`](../../releases/tag/apk-latest) (la genera el workflow `android.yml` en cada push a `main`), ábrelo en el móvil y permite «instalar apps de origen desconocido».
+
+**Compilar en local** (requiere JDK 21 y el SDK de Android):
+
+```bash
+npm run build && npx cap sync android
+cd android && ./gradlew assembleDebug   # → app/build/outputs/apk/debug/app-debug.apk
+```
+
+El APK se firma con `android/app/debug.keystore` (llave de depuración con contraseña pública `android`), incluida a propósito para que cada versión se instale encima de la anterior sin perder datos. Para publicar en Google Play hace falta generar una llave privada.
+
 ## Desarrollo
 
 ```bash
@@ -48,7 +67,7 @@ El workflow `.github/workflows/pages.yml` la publica en GitHub Pages al hacer pu
 ## Limitaciones
 - Las fases son una **estimación**, no una medición (no hay EEG).
 - La voz sintética no pasa por el AudioContext: sin fundidos, y algunos móviles ignoran su volumen. Para la noche, mejor tu voz grabada.
-- En iPhone el navegador detiene el audio si se bloquea la pantalla: deja la app abierta (la pantalla queda negra).
+- En la versión web, el navegador detiene el audio si se bloquea la pantalla: deja la app abierta (la pantalla queda negra). La app de Android no tiene esta limitación.
 - No es un dispositivo médico.
 
 ## Estructura
@@ -58,6 +77,8 @@ src/lib/night.ts         NightRunner: decide qué suena y cuándo
 src/lib/audio/engine.ts  motor Web Audio (ruido, pistas, TTS, keep-alive iOS)
 src/lib/audio/synth.ts   señales sonoras y ruidos generados en el dispositivo
 src/lib/device.ts        grabadora, Wake Lock, detector de movimiento
+src/lib/native.ts        puente con Android (sesión nocturna nativa, voz del sistema)
+android/                 proyecto Android de Capacitor (SleepSessionPlugin, SleepService)
 src/lib/db.ts            IndexedDB
 src/screens/             Noche, modo noche, Objetivos, Preparación, Pistas, Diario, Guía
 ```

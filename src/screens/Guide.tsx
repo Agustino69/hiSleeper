@@ -1,3 +1,5 @@
+import { isNative } from '../lib/native';
+
 export function GuideScreen() {
   return (
     <div className="screen guide">
@@ -81,12 +83,24 @@ export function GuideScreen() {
 
       <section className="card">
         <h3>En el móvil</h3>
-        <ul>
-          <li>Instala la app («Añadir a pantalla de inicio») para usarla sin conexión.</li>
-          <li>Conecta el cargador: la pantalla queda negra pero encendida toda la noche.</li>
-          <li>Activa «No molestar» y el modo avión; las notificaciones fragmentan el sueño.</li>
-          <li>En iPhone, desactiva el bloqueo automático o deja la app en primer plano.</li>
-        </ul>
+        {isNative ? (
+          <ul>
+            <li>El audio sigue sonando con la pantalla apagada (verás una notificación de «sesión nocturna»).</li>
+            <li>El detector de movimiento necesita la pantalla encendida: si lo usas, queda en negro toda la noche.</li>
+            <li>Conecta el cargador y activa «No molestar»; las notificaciones fragmentan el sueño.</li>
+            <li>
+              Si el audio se corta de madrugada, quita a hiSleeper de la optimización de batería (Ajustes → Apps →
+              hiSleeper → Batería → Sin restricciones).
+            </li>
+          </ul>
+        ) : (
+          <ul>
+            <li>Instala la app («Añadir a pantalla de inicio») para usarla sin conexión.</li>
+            <li>Conecta el cargador: la pantalla queda negra pero encendida toda la noche.</li>
+            <li>Activa «No molestar» y el modo avión; las notificaciones fragmentan el sueño.</li>
+            <li>En iPhone, desactiva el bloqueo automático o deja la app en primer plano.</li>
+          </ul>
+        )}
         <p className="muted small">
           Todo (grabaciones, diario, ajustes) se guarda solo en este dispositivo. hiSleeper no es un dispositivo médico:
           si tienes insomnio o apnea, consulta a un especialista.

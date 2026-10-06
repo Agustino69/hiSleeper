@@ -1,0 +1,8 @@
+{
+  "appId": "com.agustino69.hisleeper",
+  "appName": "hiSleeper",
+  "webDir": "dist",
+  "android": {
+    "backgroundColor": "#0b0d1a"
+  }
+}

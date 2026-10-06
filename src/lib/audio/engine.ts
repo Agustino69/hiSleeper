@@ -1,5 +1,6 @@
 import { db } from '../db';
 import type { CueSoundId, NoiseType, Track } from '../types';
+import { isNative, nativeVoiceList, speakNative, stopNativeSpeech, type VoiceInfo } from '../native';
 import { createNoiseBuffer, normalizeBuffer, renderCue } from './synth';
 
 /**
@@ -231,35 +232,62 @@ function trimSilence(buf: AudioBuffer, threshold = 0.01): AudioBuffer {
 }
 
 let cachedVoices: SpeechSynthesisVoice[] = [];
-export function getVoices(): SpeechSynthesisVoice[] {
+function webVoices(): SpeechSynthesisVoice[] {
   if (typeof speechSynthesis === 'undefined') return [];
   const v = speechSynthesis.getVoices();
   if (v.length) cachedVoices = v;
   return cachedVoices;
 }
 
-export function defaultVoice(): SpeechSynthesisVoice | undefined {
-  const voices = getVoices();
+/** Voces disponibles: las del sistema Android en la app nativa, las del navegador en la web. */
+export async function listVoices(): Promise<VoiceInfo[]> {
+  if (isNative) return nativeVoiceList();
+  if (typeof speechSynthesis === 'undefined') return [];
+  if (!webVoices().length) {
+    // Algunos navegadores cargan la lista de voces de forma asíncrona.
+    await new Promise<void>((resolve) => {
+      speechSynthesis.addEventListener('voiceschanged', () => resolve(), { once: true });
+      setTimeout(resolve, 1500);
+    });
+  }
+  return webVoices();
+}
+
+export function hasSpeech(): boolean {
+  return isNative || typeof speechSynthesis !== 'undefined';
+}
+
+export function defaultVoice(voices: VoiceInfo[]): VoiceInfo | undefined {
   const lang = navigator.language.slice(0, 2);
   return voices.find((v) => v.lang.startsWith(lang) && v.localService) ?? voices.find((v) => v.lang.startsWith(lang));
 }
 
 /**
- * Voz sintetizada. No pasa por el AudioContext (el navegador no lo permite),
+ * Voz sintetizada. No pasa por el AudioContext (el sistema no lo permite),
  * así que el volumen se aplica directamente al enunciado.
  */
 function speak(track: Track, gain: number, playing: Set<{ stop: () => void }>): Promise<void> {
-  if (typeof speechSynthesis === 'undefined' || !track.text) return Promise.resolve();
+  if (!track.text || !hasSpeech()) return Promise.resolve();
+  const volume = Math.min(1, gain * 1.5);
+  const rate = track.ttsRate ?? 0.85;
+  if (isNative) {
+    const handle = { stop: stopNativeSpeech };
+    playing.add(handle);
+    return speakNative(track.text, { voiceURI: track.ttsVoice, rate, volume })
+      .catch(() => undefined)
+      .finally(() => playing.delete(handle));
+  }
   return new Promise((resolve) => {
     const u = new SpeechSynthesisUtterance(track.text);
-    const voice = getVoices().find((v) => v.voiceURI === track.ttsVoice) ?? defaultVoice();
+    const voices = webVoices();
+    const voice = voices.find((v) => v.voiceURI === track.ttsVoice) ?? defaultVoice(voices);
     if (voice) {
-      u.voice = voice;
+      u.voice = voice as SpeechSynthesisVoice;
       u.lang = voice.lang;
     }
-    u.rate = track.ttsRate ?? 0.85;
+    u.rate = rate;
     u.pitch = 0.95;
-    u.volume = Math.min(1, gain * 1.5);
+    u.volume = volume;
     const handle = { stop: () => speechSynthesis.cancel() };
     playing.add(handle);
     const done = () => {

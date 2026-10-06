@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { engine, getVoices, defaultVoice } from '../lib/audio/engine';
+import { defaultVoice, engine, hasSpeech, listVoices } from '../lib/audio/engine';
+import type { VoiceInfo } from '../lib/native';
 import { db, uid } from '../lib/db';
 import { volumeToGain } from '../lib/schedule';
 import { useStore } from '../lib/store';
@@ -163,17 +164,14 @@ function TtsSheet({ onClose }: { onClose: () => void }) {
   const [name, setName] = useState('');
   const [text, setText] = useState('');
   const [rate, setRate] = useState(0.85);
-  const [voices, setVoices] = useState(getVoices());
-  const [voice, setVoice] = useState(defaultVoice()?.voiceURI ?? '');
+  const [voices, setVoices] = useState<VoiceInfo[]>([]);
+  const [voice, setVoice] = useState('');
 
   useEffect(() => {
-    if (typeof speechSynthesis === 'undefined') return;
-    const update = () => {
-      setVoices(getVoices());
-      setVoice((v) => v || defaultVoice()?.voiceURI || '');
-    };
-    speechSynthesis.addEventListener('voiceschanged', update);
-    return () => speechSynthesis.removeEventListener('voiceschanged', update);
+    void listVoices().then((v) => {
+      setVoices(v);
+      setVoice((cur) => cur || defaultVoice(v)?.voiceURI || '');
+    });
   }, []);
 
   const draft = (): Track => ({
@@ -198,7 +196,7 @@ function TtsSheet({ onClose }: { onClose: () => void }) {
 
   return (
     <Sheet title="Texto a voz" onClose={onClose}>
-      {typeof speechSynthesis === 'undefined' && <p className="error">Este navegador no tiene síntesis de voz.</p>}
+      {!hasSpeech() && <p className="error">Este navegador no tiene síntesis de voz.</p>}
       <label className="field">
         <span>Nombre</span>
         <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Opcional" />

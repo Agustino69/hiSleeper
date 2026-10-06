@@ -3,6 +3,7 @@ import { engine } from '../lib/audio/engine';
 import { NOISE_TYPES } from '../lib/audio/synth';
 import { db, uid } from '../lib/db';
 import { MotionMonitor } from '../lib/device';
+import { isNative } from '../lib/native';
 import { fmtClock, fmtMinutes, GOAL_INFO, isToday } from '../lib/format';
 import { estimateHypnogram, minutesUntil, planWindows, suggestWakeTimes, volumeToGain } from '../lib/schedule';
 import { useStore } from '../lib/store';
@@ -284,8 +285,9 @@ export function TonightScreen({ onStart, onGoTo }: { onStart: (log: NightLog) =>
         🌙 Dormir
       </button>
       <p className="muted small center">
-        Pon el móvil a cargar, en modo avión o «no molestar», con la pantalla hacia abajo. La pantalla quedará en negro
-        pero encendida para que el navegador no detenga el audio.
+        {isNative
+          ? 'Pon el móvil a cargar, en «no molestar», con la pantalla hacia abajo. El audio sigue con la pantalla apagada (con el detector de movimiento activo, la pantalla queda en negro pero encendida).'
+          : 'Pon el móvil a cargar, en modo avión o «no molestar», con la pantalla hacia abajo. La pantalla quedará en negro pero encendida para que el navegador no detenga el audio.'}
       </p>
     </div>
   );
