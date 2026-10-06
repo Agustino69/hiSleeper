@@ -1,7 +1,7 @@
 {
   "name": "hisleeper",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.3.0",
   "type": "module",
   "description": "Reproduce pistas y audios de voz durante el sueño, sincronizados con el ciclo de sueño, para repasar, afirmar mantras e incubar sueños.",
   "scripts": {
@@ -15,6 +15,7 @@
     "@capacitor-community/text-to-speech": "^8.0.2",
     "@capacitor/android": "^8.5.2",
     "@capacitor/core": "^8.5.2",
+    "onnxruntime-web": "1.30.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
   },

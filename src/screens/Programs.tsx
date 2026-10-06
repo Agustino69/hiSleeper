@@ -8,6 +8,8 @@ import { useStore } from '../lib/store';
 import type { CueSoundId, Goal, Program } from '../lib/types';
 import { Empty, Sheet } from '../components/ui';
 import { PrepareScreen } from './Prepare';
+import { TemplateSheet } from '../components/TemplateSheet';
+import { TEMPLATES, type Template } from '../lib/tts/presets';
 
 const NOTES_LABEL: Record<Goal, { label: string; placeholder: string }> = {
   review: {
@@ -26,6 +28,7 @@ export function ProgramsScreen() {
   const [editing, setEditing] = useState<Program | null>(null);
   const [preparing, setPreparing] = useState<Program | null>(null);
   const [picking, setPicking] = useState(false);
+  const [template, setTemplate] = useState<Template | null>(null);
 
   function create(goal: Goal) {
     const used = new Set(programs.map((p) => p.cue));
@@ -60,7 +63,7 @@ export function ProgramsScreen() {
       </button>
 
       {programs.length === 0 ? (
-        <Empty>Crea tu primer objetivo: un tema que repasar, un mantra o algo que quieras soñar.</Empty>
+        <Empty>Crea tu primer objetivo o empieza con una plantilla, como 🏴‍☠️ «Soñar que soy pirata».</Empty>
       ) : (
         <ul className="list">
           {programs.map((p) => (
@@ -99,6 +102,24 @@ export function ProgramsScreen() {
 
       {picking && (
         <Sheet title="¿Qué quieres lograr?" onClose={() => setPicking(false)}>
+          <h3>Plantillas listas</h3>
+          <div className="template-grid">
+            {TEMPLATES.map((t) => (
+              <button
+                key={t.id}
+                className="template-card"
+                onClick={() => {
+                  setPicking(false);
+                  setTemplate(t);
+                }}
+              >
+                <span className="style-icon">{t.icon}</span>
+                <b>{t.name}</b>
+                <small>{GOAL_INFO[t.goal].label}</small>
+              </button>
+            ))}
+          </div>
+          <h3>O desde cero</h3>
           <div className="goal-pick">
             {(Object.keys(GOAL_INFO) as Goal[]).map((g) => (
               <button key={g} className="card goal-option" onClick={() => create(g)}>
@@ -112,6 +133,7 @@ export function ProgramsScreen() {
           </div>
         </Sheet>
       )}
+      {template && <TemplateSheet template={template} onClose={() => setTemplate(null)} />}
       {editing && <ProgramEditor program={editing} onClose={() => setEditing(null)} />}
       {preparing && <PrepareScreen program={preparing} onClose={() => setPreparing(null)} />}
     </div>

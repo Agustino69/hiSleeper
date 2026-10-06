@@ -31,6 +31,26 @@ Todo se guarda en el dispositivo (IndexedDB): grabaciones, objetivos, diario y a
 - **Detector de movimiento** (acelerómetro, móvil sobre el colchón): pausa las pistas y baja el volumen el resto de la noche.
 - Pantalla negra con *Wake Lock* para que el navegador no detenga el audio; despertador suave opcional.
 
+## Voces IA
+
+En **Pistas → ✨ Voz IA** se escribe un guion y se genera una pista de audio (se guarda como WAV, así suena igual de noche, con fundidos y sin conexión):
+
+| Motor | Calidad | Requisitos |
+|---|---|---|
+| **Neural en el teléfono** ([Piper](https://github.com/rhasspy/piper), VITS) | natural | descarga única: fonemizador ~19 MB + voz ~63–77 MB |
+| **Nube** (OpenAI `gpt-4o-mini-tts`) | la más expresiva, sigue indicaciones de actuación | clave propia de OpenAI (se guarda solo en el dispositivo) |
+| Básica del sistema | robótica | nada |
+
+Controles: **ritmo** (`length_scale`), **expresividad** (`noise_scale`), **naturalidad del ritmo** (`noise_w`), **tono** (remuestreo con la duración compensada), **pausas** entre frases, **espacio/eco** (convolución) y **calidez** (ecualización). En la nube, los controles se traducen a indicaciones de estilo.
+
+El guion admite `...` (pausa larga), línea en blanco (pausa de párrafo) y `[pausa 3]` (3 s de silencio).
+
+**Estilos:** 🌙 Susurro para dormir · 🧘 Meditación guiada · 📖 Cuentacuentos · 🏴‍☠️ Capitán pirata · 🌌 Voz del cosmos · 🧚 Bosque encantado · 💪 Coach de confianza · 🎓 Profesor claro.
+
+**Plantillas** (en Objetivos → Nuevo): 🏴‍☠️ Soñar que soy pirata · 🕊️ Soñar que vuelo · 🚀 Viajar por el espacio · 🌊 Calma profunda · 💪 Confianza en mí · 🇬🇧 Vocabulario de inglés. Cada una crea el objetivo completo: guiones con su voz y estilo, señal sonora y ruido de fondo.
+
+La síntesis Piper corre en un Web Worker (`src/lib/tts/piper.worker.ts`) con onnxruntime-web; las voces se descargan de Hugging Face y se guardan en IndexedDB.
+
 ## App de Android (APK)
 
 Además de la versión web, hiSleeper se empaqueta como app nativa de Android con [Capacitor](https://capacitorjs.com). La app nativa añade:
@@ -70,6 +90,11 @@ El workflow `.github/workflows/pages.yml` la publica en GitHub Pages al hacer pu
 - En la versión web, el navegador detiene el audio si se bloquea la pantalla: deja la app abierta (la pantalla queda negra). La app de Android no tiene esta limitación.
 - No es un dispositivo médico.
 
+## Créditos y licencias de terceros
+- [onnxruntime-web](https://github.com/microsoft/onnxruntime) (MIT), incluido en la app.
+- Voces de [Piper](https://github.com/rhasspy/piper) ([modelos](https://huggingface.co/rhasspy/piper-voices), cada uno con su licencia en su MODEL_CARD), descargadas en el dispositivo.
+- Fonemizador [piper-phonemize](https://github.com/rhasspy/piper-phonemize) con [eSpeak NG](https://github.com/espeak-ng/espeak-ng) (GPL-3.0), compilado a wasm por [@diffusionstudio/piper-wasm](https://www.npmjs.com/package/@diffusionstudio/piper-wasm); no se distribuye con el código: el dispositivo lo descarga al activar las voces neuronales.
+
 ## Estructura
 ```
 src/lib/schedule.ts      modelo de ciclos, ventanas y envolventes (puro, con tests)
@@ -77,6 +102,7 @@ src/lib/night.ts         NightRunner: decide qué suena y cuándo
 src/lib/audio/engine.ts  motor Web Audio (ruido, pistas, TTS, keep-alive iOS)
 src/lib/audio/synth.ts   señales sonoras y ruidos generados en el dispositivo
 src/lib/device.ts        grabadora, Wake Lock, detector de movimiento
+src/lib/tts/              voces IA: Piper (worker), OpenAI, posproducción, estilos y plantillas
 src/lib/native.ts        puente con Android (sesión nocturna nativa, voz del sistema)
 android/                 proyecto Android de Capacitor (SleepSessionPlugin, SleepService)
 src/lib/db.ts            IndexedDB

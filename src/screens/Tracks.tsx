@@ -1,17 +1,19 @@
-import { useEffect, useState } from 'react';
-import { defaultVoice, engine, hasSpeech, listVoices } from '../lib/audio/engine';
-import type { VoiceInfo } from '../lib/native';
+import { useState } from 'react';
+import { engine } from '../lib/audio/engine';
 import { db, uid } from '../lib/db';
 import { volumeToGain } from '../lib/schedule';
 import { useStore } from '../lib/store';
 import type { Track } from '../lib/types';
 import { Empty, RecordButton, Sheet } from '../components/ui';
+import { VoiceStudio } from '../components/VoiceStudio';
+import { styleById } from '../lib/tts/presets';
 
-const KIND_LABEL: Record<Track['kind'], string> = { recording: 'Tu voz', file: 'Archivo', tts: 'Voz sintética' };
+const KIND_LABEL: Record<Track['kind'], string> = { recording: 'Tu voz', file: 'Archivo', tts: 'Voz básica', voice: 'Voz IA' };
 
 export function TracksScreen() {
   const { tracks, programs, refresh } = useStore();
-  const [adding, setAdding] = useState<null | 'voice' | 'tts'>(null);
+  const [adding, setAdding] = useState<null | 'voice' | 'studio'>(null);
+  const [editing, setEditing] = useState<Track | null>(null);
   const [playing, setPlaying] = useState<string | null>(null);
 
   async function play(t: Track) {
@@ -64,14 +66,14 @@ export function TracksScreen() {
     <div className="screen">
       <header className="screen-head">
         <h1>Pistas</h1>
-        <p className="muted">Lo que sonará de noche: tu propia voz, audios que ya tengas o texto leído por el teléfono.</p>
+        <p className="muted">Lo que sonará de noche: voces IA con estilo, tu propia voz o audios que ya tengas.</p>
       </header>
 
       <div className="actions">
-        <button className="primary" onClick={() => setAdding('voice')}>
-          🎙️ Grabar mi voz
+        <button className="primary" onClick={() => setAdding('studio')}>
+          ✨ Voz IA
         </button>
-        <button onClick={() => setAdding('tts')}>💬 Texto a voz</button>
+        <button onClick={() => setAdding('voice')}>🎙️ Grabar mi voz</button>
         <label className="button">
           📁 Importar audio
           <input
@@ -89,7 +91,7 @@ export function TracksScreen() {
 
       {tracks.length === 0 ? (
         <Empty>
-          Aún no hay pistas. Graba frases cortas: un concepto que repasar, tu mantra o la escena que quieres soñar.
+          Aún no hay pistas. Crea una con «Voz IA» (prueba el estilo 🏴‍☠️ Capitán pirata), graba tu voz o usa una plantilla en «Objetivos».
         </Empty>
       ) : (
         <ul className="list">
@@ -101,12 +103,17 @@ export function TracksScreen() {
               <div className="grow">
                 <b>{t.name}</b>
                 <small className="muted">
+                  {t.synth ? `${styleById(t.synth.styleId)?.icon ?? '✨'} ` : ''}
                   {KIND_LABEL[t.kind]}
                   {t.durationSec ? ` · ${Math.round(t.durationSec)} s` : ''}
                   {t.kind === 'tts' && t.text ? ` · «${t.text.slice(0, 40)}${t.text.length > 40 ? '…' : ''}»` : ''}
                 </small>
               </div>
-              <button className="ghost icon" onClick={() => rename(t)} aria-label="Renombrar">
+              <button
+                className="ghost icon"
+                onClick={() => (t.kind === 'voice' || t.kind === 'tts' ? setEditing(t) : rename(t))}
+                aria-label={t.kind === 'voice' || t.kind === 'tts' ? 'Editar voz' : 'Renombrar'}
+              >
                 ✎
               </button>
               <button className="ghost icon" onClick={() => remove(t)} aria-label="Borrar">
@@ -118,7 +125,8 @@ export function TracksScreen() {
       )}
 
       {adding === 'voice' && <VoiceSheet onClose={() => setAdding(null)} />}
-      {adding === 'tts' && <TtsSheet onClose={() => setAdding(null)} />}
+      {adding === 'studio' && <VoiceStudio onClose={() => setAdding(null)} />}
+      {editing && <VoiceStudio track={editing} onClose={() => setEditing(null)} />}
     </div>
   );
 }
@@ -155,85 +163,6 @@ function VoiceSheet({ onClose }: { onClose: () => void }) {
         <li>Para soñar: describe la escena con detalles sensoriales: «Estoy en la playa, siento la arena tibia…».</li>
       </ul>
       <RecordButton onDone={save} />
-    </Sheet>
-  );
-}
-
-function TtsSheet({ onClose }: { onClose: () => void }) {
-  const { refresh } = useStore();
-  const [name, setName] = useState('');
-  const [text, setText] = useState('');
-  const [rate, setRate] = useState(0.85);
-  const [voices, setVoices] = useState<VoiceInfo[]>([]);
-  const [voice, setVoice] = useState('');
-
-  useEffect(() => {
-    void listVoices().then((v) => {
-      setVoices(v);
-      setVoice((cur) => cur || defaultVoice(v)?.voiceURI || '');
-    });
-  }, []);
-
-  const draft = (): Track => ({
-    id: uid(),
-    name: name.trim() || text.trim().slice(0, 30),
-    kind: 'tts',
-    text: text.trim(),
-    ttsRate: rate,
-    ttsVoice: voice,
-    createdAt: Date.now(),
-  });
-
-  async function save() {
-    if (!text.trim()) return;
-    await db.tracks.save(draft());
-    await refresh();
-    onClose();
-  }
-
-  const lang = navigator.language.slice(0, 2);
-  const sorted = [...voices].sort((a, b) => Number(b.lang.startsWith(lang)) - Number(a.lang.startsWith(lang)));
-
-  return (
-    <Sheet title="Texto a voz" onClose={onClose}>
-      {!hasSpeech() && <p className="error">Este navegador no tiene síntesis de voz.</p>}
-      <label className="field">
-        <span>Nombre</span>
-        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Opcional" />
-      </label>
-      <label className="field">
-        <span>Texto</span>
-        <textarea rows={4} value={text} onChange={(e) => setText(e.target.value)} placeholder="Frase corta y clara" />
-      </label>
-      <label className="field">
-        <span>Voz</span>
-        <select value={voice} onChange={(e) => setVoice(e.target.value)}>
-          {sorted.map((v) => (
-            <option key={v.voiceURI} value={v.voiceURI}>
-              {v.name} ({v.lang})
-            </option>
-          ))}
-        </select>
-      </label>
-      <label className="field">
-        <span className="field-row">
-          <span>Velocidad</span>
-          <b>{rate.toFixed(2)}×</b>
-        </span>
-        <input type="range" min={0.5} max={1.2} step={0.05} value={rate} onChange={(e) => setRate(Number(e.target.value))} />
-      </label>
-      <small className="muted">
-        Nota: la voz sintética no pasa por el filtro ni por los fundidos, y algunos móviles ignoran su volumen. Para
-        la noche, tu voz grabada es más fiable.
-      </small>
-      <div className="actions">
-        <button onClick={() => void engine.playTrack(draft(), volumeToGain(75))} disabled={!text.trim()}>
-          ▶ Probar
-        </button>
-        <button className="primary" onClick={save} disabled={!text.trim()}>
-          Guardar
-        </button>
-      </div>
     </Sheet>
   );
 }

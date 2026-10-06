@@ -658,3 +658,91 @@ small {
 .guide li {
   margin: 0.3rem 0;
 }
+
+/* Estudio de voz y plantillas */
+.style-grid,
+.template-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+@media (min-width: 560px) {
+  .style-grid,
+  .template-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+.style-card,
+.template-card {
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+  gap: 0.15rem;
+  border-radius: 12px;
+  padding: 0.6rem 0.7rem;
+  min-height: 0;
+}
+.style-card small,
+.template-card small {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+.style-card.on {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 16%, var(--surface-2));
+}
+.style-icon {
+  font-size: 1.4rem;
+}
+.segmented {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.4rem;
+}
+.segmented button {
+  flex-direction: column;
+  gap: 0;
+  border-radius: 12px;
+  padding: 0.45rem 0.3rem;
+}
+.segmented button small {
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+.segmented button.on {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-color: transparent;
+}
+.segmented button.on small {
+  color: var(--accent-ink);
+}
+.fine {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+.download {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+.download progress {
+  width: 100%;
+  accent-color: var(--accent);
+}
+details summary {
+  cursor: pointer;
+  color: var(--accent);
+}
+.script {
+  margin: 0.6rem 0;
+}
+.script p {
+  white-space: pre-wrap;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+.sheet h3 {
+  margin: 0.2rem 0 0;
+}

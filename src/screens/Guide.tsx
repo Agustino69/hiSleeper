@@ -55,6 +55,26 @@ export function GuideScreen() {
       </section>
 
       <section className="card">
+        <h3>✨ Voces IA</h3>
+        <p>
+          En «Pistas → Voz IA» escribes un guion y eliges un estilo (susurro, cuentacuentos, capitán pirata…). Cada
+          estilo ajusta ritmo, expresividad, tono, pausas, eco y calidez; puedes afinarlos a mano.
+        </p>
+        <ul>
+          <li>
+            <b>Neural en el teléfono:</b> voces naturales que se descargan una vez y funcionan sin conexión.
+          </li>
+          <li>
+            <b>Nube:</b> la más expresiva, actúa según tus indicaciones («voz ronca de viejo pirata»). Necesita tu clave
+            de OpenAI y conexión solo al generarla.
+          </li>
+          <li>
+            Escribe en presente, frases cortas y con detalles de los sentidos. Usa «...» o [pausa 2] para dar aire.
+          </li>
+        </ul>
+      </section>
+
+      <section className="card">
         <h3>Reglas para que funcione (y no arruine tu sueño)</h3>
         <ul>
           <li>

@@ -168,7 +168,7 @@ class AudioEngine {
     await this.playBuffer(await this.trackBuffer(track), gain);
   }
 
-  private async playBuffer(buf: AudioBuffer, gain: number): Promise<void> {
+  async playBuffer(buf: AudioBuffer, gain: number): Promise<void> {
     const ctx = await this.ensure();
     const src = ctx.createBufferSource();
     const g = ctx.createGain();

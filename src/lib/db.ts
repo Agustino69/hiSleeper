@@ -3,9 +3,9 @@ import type { JournalEntry, NightLog, NightSettings, Program, Track } from './ty
 /** Almacenamiento local: todo queda en el dispositivo (IndexedDB). */
 
 const DB_NAME = 'hisleeper';
-const DB_VERSION = 1;
-type StoreName = 'tracks' | 'programs' | 'nights' | 'journal' | 'blobs' | 'meta';
-const STORES: StoreName[] = ['tracks', 'programs', 'nights', 'journal', 'blobs', 'meta'];
+const DB_VERSION = 2;
+type StoreName = 'tracks' | 'programs' | 'nights' | 'journal' | 'blobs' | 'meta' | 'assets';
+const STORES: StoreName[] = ['tracks', 'programs', 'nights', 'journal', 'blobs', 'meta', 'assets'];
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
@@ -86,6 +86,7 @@ export const db = {
   },
   blobs: {
     get: (key: string) => get<Blob>('blobs', key),
+    remove: (key: string) => del('blobs', key),
     async add(blob: Blob): Promise<string> {
       const key = uid();
       await put('blobs', key, blob);
@@ -97,6 +98,20 @@ export const db = {
       return { ...DEFAULT_SETTINGS, ...((await get<Partial<NightSettings>>('meta', 'settings')) ?? {}) };
     },
     save: (s: NightSettings) => put('meta', 'settings', s),
+  },
+  /** Recursos descargados (modelos de voz, motores wasm), por nombre. */
+  assets: {
+    get: (key: string) => get<Blob>('assets', key),
+    put: (key: string, blob: Blob) => put('assets', key, blob),
+    remove: (key: string) => del('assets', key),
+    async keys(): Promise<string[]> {
+      return wrap((await store('assets', 'readonly')).getAllKeys()) as Promise<string[]>;
+    },
+  },
+  meta: {
+    get: <T>(key: string) => get<T>('meta', key),
+    set: (key: string, value: unknown) => put('meta', key, value),
+    remove: (key: string) => del('meta', key),
   },
   activeNight: {
     get: () => get<string>('meta', 'activeNight'),
