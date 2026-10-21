@@ -7,6 +7,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(SleepSessionPlugin.class);
+        registerPlugin(FocusPlugin.class);
         super.onCreate(savedInstanceState);
     }
 }

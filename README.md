@@ -51,6 +51,20 @@ El guion admite `...` (pausa larga), línea en blanco (pausa de párrafo) y `[pa
 
 La síntesis Piper corre en un Web Worker (`src/lib/tts/piper.worker.ts`) con onnxruntime-web; las voces se descargan de Hugging Face y se guardan en IndexedDB.
 
+## Sin pantallas en la cama (anti-doomscrolling)
+
+En la app de Android, **Noche → 📵 Sin pantallas en la cama** bloquea las apps elegidas (se preseleccionan Instagram, TikTok, YouTube, X, Reddit… si están instaladas):
+
+- **Noche**: desde `hora de acostarse − desconexión` hasta la hora de despertar, en los días elegidos, y siempre mientras haya una sesión nocturna en marcha.
+- **Mañana**: desde la hora de despertar, hasta superar un reto: **caminar N pasos** (acelerómetro) o **anotar el sueño** en el diario. Se desbloquea solo al cumplirse un tope de seguridad.
+- **Firmeza**: *con fricción* (se puede abrir tras una pausa para respirar, con permiso temporal de unos minutos) o *estricto*.
+- Teléfono, emergencias, SMS, reloj, ajustes y el escritorio **nunca** se bloquean.
+- Estadísticas de aperturas evitadas en los últimos 7 días.
+
+**Cómo funciona:** un servicio de accesibilidad (`FocusAccessibilityService`) recibe solo los cambios de ventana (`typeWindowStateChanged`, `canRetrieveWindowContent=false`): conoce el nombre del paquete que pasa a primer plano y nada más. Si está bloqueado, abre hiSleeper con la pantalla de bloqueo. Las ventanas de bloqueo (fechas concretas de los próximos 14 días) se calculan en `src/lib/focus.ts` (con tests) y se envían al servicio, que solo comprueba si «ahora» cae dentro de alguna (`FocusLogic.java`, con tests JUnit).
+
+**Activarlo:** Ajustes → Accesibilidad → «hiSleeper · Sin pantallas en la cama». En Android 13+ las apps instaladas fuera de Google Play muestran «Ajuste restringido»: primero Info de la app → ⋮ → *Permitir ajustes restringidos*.
+
 ## App de Android (APK)
 
 Además de la versión web, hiSleeper se empaqueta como app nativa de Android con [Capacitor](https://capacitorjs.com). La app nativa añade:
@@ -103,8 +117,10 @@ src/lib/audio/engine.ts  motor Web Audio (ruido, pistas, TTS, keep-alive iOS)
 src/lib/audio/synth.ts   señales sonoras y ruidos generados en el dispositivo
 src/lib/device.ts        grabadora, Wake Lock, detector de movimiento
 src/lib/tts/              voces IA: Piper (worker), OpenAI, posproducción, estilos y plantillas
+src/lib/focus.ts         ventanas de bloqueo y detector de pasos (puro, con tests)
+src/lib/focusBridge.ts   puente con el bloqueo nativo (configuración, sesiones, retos)
 src/lib/native.ts        puente con Android (sesión nocturna nativa, voz del sistema)
-android/                 proyecto Android de Capacitor (SleepSessionPlugin, SleepService)
+android/                 proyecto Android de Capacitor (SleepSession, Focus: servicio de accesibilidad)
 src/lib/db.ts            IndexedDB
 src/screens/             Noche, modo noche, Objetivos, Preparación, Pistas, Diario, Guía
 ```

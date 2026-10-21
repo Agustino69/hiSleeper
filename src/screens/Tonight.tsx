@@ -10,12 +10,21 @@ import { useStore } from '../lib/store';
 import type { NightLog, NightSettings, NoiseType } from '../lib/types';
 import { Hypnogram } from '../components/Hypnogram';
 import { Slider } from '../components/ui';
+import { FocusCard } from '../components/FocusCard';
 
 export function plannedMinutes(s: NightSettings, from: Date): number {
   return (s.wakeTime && minutesUntil(s.wakeTime, from)) || s.latencyMin + 5 * s.cycleMin;
 }
 
-export function TonightScreen({ onStart, onGoTo }: { onStart: (log: NightLog) => void; onGoTo: (tab: 'programs') => void }) {
+export function TonightScreen({
+  onStart,
+  onGoTo,
+  onMorningUnlock,
+}: {
+  onStart: (log: NightLog) => void;
+  onGoTo: (tab: 'programs') => void;
+  onMorningUnlock: () => void;
+}) {
   const { programs, settings, saveSettings } = useStore();
   const [now, setNow] = useState(() => new Date());
   const [noisePreview, setNoisePreview] = useState(false);
@@ -156,6 +165,8 @@ export function TonightScreen({ onStart, onGoTo }: { onStart: (log: NightLog) =>
         )}
         {empty.length > 0 && <p className="warn">Sin señal ni pistas: {empty.map((p) => p.name).join(', ')}.</p>}
       </section>
+
+      <FocusCard onMorningUnlock={onMorningUnlock} />
 
       <section className="card">
         <h3>Despertar</h3>

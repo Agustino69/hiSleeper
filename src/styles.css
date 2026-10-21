@@ -746,3 +746,119 @@ details summary {
 .sheet h3 {
   margin: 0.2rem 0 0;
 }
+
+/* Sin pantallas en la cama */
+.time-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.6rem;
+}
+.time-row input[type='time'] {
+  width: 100%;
+  min-width: 0;
+  font-size: 1.15rem;
+}
+.segmented.two {
+  grid-template-columns: repeat(2, 1fr);
+}
+.chip.day {
+  width: 40px;
+  padding: 0;
+}
+.big-stat {
+  font-size: 2rem;
+  font-weight: 650;
+  margin: 0;
+}
+.big-stat small {
+  font-size: 0.9rem;
+  font-weight: 400;
+  color: var(--muted);
+}
+.app-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.app-list label {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.45rem 0;
+  border-bottom: 1px solid var(--line);
+}
+.app-list img,
+.app-icon-ph {
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  flex: none;
+  background: var(--surface-2);
+}
+.blocked {
+  justify-content: space-between;
+  z-index: 40;
+  text-align: center;
+}
+.night-block {
+  background: radial-gradient(circle at 50% 25%, #1b1f3d 0%, #07080f 70%);
+}
+.morning-block {
+  background: radial-gradient(circle at 50% 20%, #3a2c1d 0%, #120f0c 75%);
+}
+.blocked-moon {
+  font-size: 4rem;
+  margin: 1.5rem 0 0;
+}
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  align-items: stretch;
+}
+.breath {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--accent) 0%, transparent 70%);
+  animation: breath 8s ease-in-out infinite;
+}
+@keyframes breath {
+  0%,
+  100% {
+    transform: scale(0.6);
+    opacity: 0.5;
+  }
+  50% {
+    transform: scale(1.15);
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .breath {
+    animation: none;
+  }
+}
+.ring-bg {
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 12;
+}
+.ring-fg {
+  fill: none;
+  stroke: var(--warn);
+  stroke-width: 12;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.3s;
+}
+.ring-num {
+  fill: var(--text);
+  font-size: 40px;
+  font-weight: 650;
+}
+.ring-label {
+  fill: var(--muted);
+  font-size: 13px;
+}

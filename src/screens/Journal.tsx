@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { engine } from '../lib/audio/engine';
 import { db, uid } from '../lib/db';
 import { fmtClock, fmtDate, fmtMinutes } from '../lib/format';
+import { onJournalSaved } from '../lib/focusBridge';
 import { useStore } from '../lib/store';
 import type { JournalEntry, NightLog } from '../lib/types';
 import { Empty, RecordButton, Sheet } from '../components/ui';
@@ -136,6 +137,8 @@ function EntryEditor({ entry, onClose }: { entry: JournalEntry; onClose: () => v
 
   async function save() {
     await db.journal.save(e);
+    // Reto matutino «anotar mi sueño»: desbloquea las apps.
+    if (await onJournalSaved(e.text)) alert('🔓 ¡Buen comienzo! Tus apps están desbloqueadas.');
     await refresh();
     onClose();
   }

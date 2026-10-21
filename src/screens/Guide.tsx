@@ -75,6 +75,26 @@ export function GuideScreen() {
       </section>
 
       <section className="card">
+        <h3>📵 Sin pantallas en la cama</h3>
+        <p>
+          El scroll antes de dormir retrasa el sueño (luz, estímulos y «solo un video más»), y empezar el día en el móvil
+          te deja en la cama. En «Noche → Sin pantallas en la cama» eliges qué apps bloquear y cuándo:
+        </p>
+        <ul>
+          <li>
+            <b>Noche:</b> desde un rato antes de acostarte hasta despertar, y siempre durante una sesión nocturna.
+          </li>
+          <li>
+            <b>Mañana:</b> siguen bloqueadas hasta que caminas unos pasos o anotas tu sueño (con un tope de seguridad).
+          </li>
+          <li>
+            <b>Con fricción</b> puedes abrirlas igual tras una pausa para respirar; en <b>estricto</b>, no. Teléfono,
+            mensajes, reloj y ajustes nunca se bloquean.
+          </li>
+        </ul>
+      </section>
+
+      <section className="card">
         <h3>Reglas para que funcione (y no arruine tu sueño)</h3>
         <ul>
           <li>

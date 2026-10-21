@@ -4,4 +4,6 @@
     <string name="title_activity_main">hiSleeper</string>
     <string name="package_name">com.agustino69.hisleeper</string>
     <string name="custom_url_scheme">com.agustino69.hisleeper</string>
+    <string name="focus_service_label">hiSleeper · Sin pantallas en la cama</string>
+    <string name="focus_service_description">Bloquea las apps que elijas a la hora de dormir y al despertar. Solo detecta qué app se abre; no lee ni guarda el contenido de la pantalla.</string>
 </resources>
