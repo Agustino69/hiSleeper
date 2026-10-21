@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Sheet, Slider } from '../components/ui';
 import { Segmented } from '../components/Segmented';
 import { SUGGESTED_PACKAGES, type FocusConfig } from '../lib/focus';
-import { Focus, focusSupported, isFocusConfigured, loadFocusConfig, saveFocusConfig, type Attempt, type InstalledApp } from '../lib/focusBridge';
+import { Focus, focusSupported, isFocusConfigured, loadFocusConfig, saveFocusConfig, type Attempt, type FocusStatus, type InstalledApp } from '../lib/focusBridge';
 import { useStore } from '../lib/store';
 
 const DAYS = ['D', 'L', 'M', 'X', 'J', 'V', 'S'];
@@ -11,7 +11,7 @@ const DAYS = ['D', 'L', 'M', 'X', 'J', 'V', 'S'];
 export function FocusSettings({ onClose }: { onClose: () => void }) {
   const { settings } = useStore();
   const [cfg, setCfg] = useState<FocusConfig | null>(null);
-  const [service, setService] = useState<{ serviceEnabled: boolean; sdk: number } | null>(null);
+  const [service, setService] = useState<FocusStatus | null>(null);
   const [apps, setApps] = useState<InstalledApp[] | null>(null);
   const [query, setQuery] = useState('');
   const [attempts, setAttempts] = useState<Attempt[]>([]);
@@ -71,7 +71,7 @@ export function FocusSettings({ onClose }: { onClose: () => void }) {
   if (!cfg) return null;
   const set = (patch: Partial<FocusConfig>) => setCfg({ ...cfg, ...patch });
   const togglePkg = (p: string) => set({ packages: cfg.packages.includes(p) ? cfg.packages.filter((x) => x !== p) : [...cfg.packages, p] });
-  const ready = !!service?.serviceEnabled;
+  const ready = !!service?.usageAccess && !!service?.overlay;
   const filtered = (apps ?? []).filter((a) => a.label.toLowerCase().includes(query.toLowerCase()));
   const selectedFirst = [...filtered].sort((a, b) => Number(cfg.packages.includes(b.package)) - Number(cfg.packages.includes(a.package)));
 
@@ -102,28 +102,33 @@ export function FocusSettings({ onClose }: { onClose: () => void }) {
           )}
 
           <section className={`card ${ready ? '' : 'banner'}`}>
-            <h3>1 · Permiso</h3>
-            {ready ? (
-              <p className="ok">✓ Permiso de accesibilidad activo</p>
-            ) : (
-              <>
-                <p>
-                  Activa <b>«hiSleeper · Sin pantallas en la cama»</b> en Accesibilidad. Solo detecta qué app se abre; no
-                  lee la pantalla.
-                </p>
-                <button className="primary" onClick={() => void Focus.openAccessibilitySettings()}>
-                  Abrir Accesibilidad
-                </button>
-                {(service?.sdk ?? 0) >= 33 && (
-                  <small className="muted">
-                    ¿Sale «Ajuste restringido»? Es normal en apps instaladas fuera de Google Play: abre{' '}
-                    <button className="link" onClick={() => void Focus.openAppSettings()}>
-                      Info de la app
-                    </button>
-                    , toca ⋮ (arriba a la derecha) → «Permitir ajustes restringidos», y vuelve a intentarlo.
-                  </small>
-                )}
-              </>
+            <h3>1 · Permisos</h3>
+            {!ready && (
+              <p className="muted small">
+                Dos permisos de bienestar digital. hiSleeper solo consulta qué app está delante durante tu horario de
+                sueño; no lee ni guarda nada de lo que hay en pantalla.
+              </p>
+            )}
+            <PermissionRow
+              ok={!!service?.usageAccess}
+              title="Acceso de uso"
+              detail="Para saber qué app se abre."
+              onFix={() => void Focus.openUsageAccessSettings()}
+            />
+            <PermissionRow
+              ok={!!service?.overlay}
+              title="Mostrar sobre otras apps"
+              detail="Para ponerse delante de la app en pausa."
+              onFix={() => void Focus.openOverlaySettings()}
+            />
+            {service && !service.exactAlarm && (
+              <PermissionRow
+                ok={false}
+                optional
+                title="Alarmas y recordatorios"
+                detail="Opcional: empezar el bloqueo al minuto exacto."
+                onFix={() => void Focus.openExactAlarmSettings()}
+              />
             )}
           </section>
 
@@ -245,5 +250,26 @@ export function FocusSettings({ onClose }: { onClose: () => void }) {
         </>
       )}
     </Sheet>
+  );
+}
+
+function PermissionRow({ ok, title, detail, onFix, optional }: { ok: boolean; title: string; detail: string; onFix: () => void; optional?: boolean }) {
+  return (
+    <div className="perm-row">
+      <span className={`perm-dot ${ok ? 'ok' : optional ? 'opt' : ''}`} aria-hidden>
+        {ok ? '✓' : ''}
+      </span>
+      <span className="grow">
+        <b>{title}</b>
+        <small className="muted">{detail}</small>
+      </span>
+      {ok ? (
+        <small className="ok">Activo</small>
+      ) : (
+        <button className={optional ? 'small' : 'small primary'} onClick={onFix}>
+          Activar
+        </button>
+      )}
+    </div>
   );
 }

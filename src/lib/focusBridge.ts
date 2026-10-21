@@ -24,10 +24,21 @@ export interface Attempt {
   at: number;
 }
 
+export interface FocusStatus {
+  /** «Acceso de uso»: saber qué app está en primer plano. */
+  usageAccess: boolean;
+  /** «Mostrar sobre otras apps»: abrir hiSleeper encima de la app bloqueada. */
+  overlay: boolean;
+  /** Alarmas exactas: empezar el bloqueo a la hora justa. */
+  exactAlarm: boolean;
+  sdk: number;
+}
+
 interface FocusPlugin {
-  getStatus(): Promise<{ serviceEnabled: boolean; sdk: number }>;
-  openAccessibilitySettings(): Promise<void>;
-  openAppSettings(): Promise<void>;
+  getStatus(): Promise<FocusStatus>;
+  openUsageAccessSettings(): Promise<void>;
+  openOverlaySettings(): Promise<void>;
+  openExactAlarmSettings(): Promise<void>;
   listApps(): Promise<{ apps: InstalledApp[] }>;
   setConfig(o: { enabled: boolean; packages: string[]; windows: FocusWindow[] }): Promise<void>;
   unlock(o: { ids: string[] }): Promise<void>;

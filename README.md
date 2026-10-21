@@ -61,9 +61,11 @@ En la app de Android, **Noche → 📵 Sin pantallas en la cama** bloquea las ap
 - Teléfono, emergencias, SMS, reloj, ajustes y el escritorio **nunca** se bloquean.
 - Estadísticas de aperturas evitadas en los últimos 7 días.
 
-**Cómo funciona:** un servicio de accesibilidad (`FocusAccessibilityService`) recibe solo los cambios de ventana (`typeWindowStateChanged`, `canRetrieveWindowContent=false`): conoce el nombre del paquete que pasa a primer plano y nada más. Si está bloqueado, abre hiSleeper con la pantalla de bloqueo. Las ventanas de bloqueo (fechas concretas de los próximos 14 días) se calculan en `src/lib/focus.ts` (con tests) y se envían al servicio, que solo comprueba si «ahora» cae dentro de alguna (`FocusLogic.java`, con tests JUnit).
+**Cómo funciona:** durante cada ventana de bloqueo, un servicio en primer plano (`FocusMonitorService`, con una notificación discreta) consulta con el *acceso de uso* qué app está delante (solo el nombre del paquete, y solo con la pantalla encendida). Si está bloqueada, abre hiSleeper encima gracias al permiso *mostrar sobre otras apps*; si el sistema no lo deja, cubre la app con una capa propia. Fuera de las ventanas no hay nada en marcha: una alarma (`FocusAlarmReceiver`, también tras reiniciar) arranca el servicio al empezar la siguiente. Las ventanas (fechas concretas de los próximos 14 días) se calculan en `src/lib/focus.ts` (con tests) y el servicio solo comprueba si «ahora» cae dentro de alguna (`FocusLogic.java`, con tests JUnit).
 
-**Activarlo:** Ajustes → Accesibilidad → «hiSleeper · Sin pantallas en la cama». En Android 13+ las apps instaladas fuera de Google Play muestran «Ajuste restringido»: primero Info de la app → ⋮ → *Permitir ajustes restringidos*.
+> **¿Por qué no un servicio de accesibilidad?** Es lo que usan muchas apps de bloqueo, pero Google Play Protect (protección mejorada contra fraude) impide instalar fuera de Play Store apps que lo declaren. El acceso de uso y mostrar sobre otras apps no están en esa lista.
+
+**Activarlo:** la pantalla de configuración lleva a cada ajuste: *Acceso de uso* → hiSleeper, y *Mostrar sobre otras apps* → hiSleeper. Opcional en Android 12–13: *Alarmas y recordatorios*, para empezar el bloqueo al minuto exacto.
 
 ## App de Android (APK)
 
@@ -120,7 +122,7 @@ src/lib/tts/              voces IA: Piper (worker), OpenAI, posproducción, esti
 src/lib/focus.ts         ventanas de bloqueo y detector de pasos (puro, con tests)
 src/lib/focusBridge.ts   puente con el bloqueo nativo (configuración, sesiones, retos)
 src/lib/native.ts        puente con Android (sesión nocturna nativa, voz del sistema)
-android/                 proyecto Android de Capacitor (SleepSession, Focus: servicio de accesibilidad)
+android/                 proyecto Android de Capacitor (SleepSession; Focus: monitor de uso, alarmas y capa de bloqueo)
 src/lib/db.ts            IndexedDB
 src/screens/             Noche, modo noche, Objetivos, Preparación, Pistas, Diario, Guía
 ```

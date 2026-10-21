@@ -35,6 +35,15 @@ public final class FocusLogic {
         return found;
     }
 
+    /** Próximo inicio de ventana después de `now` (0 si no hay ninguna). */
+    public static long nextStart(List<Window> windows, long now) {
+        long next = 0;
+        for (Window w : windows) {
+            if (w.start > now && (next == 0 || w.start < next)) next = w.start;
+        }
+        return next;
+    }
+
     public static boolean shouldBlock(
         String pkg,
         Set<String> blocked,

@@ -1,6 +1,8 @@
 package com.agustino69.hisleeper;
 
-import android.content.ComponentName;
+import android.app.AlarmManager;
+import android.app.AppOpsManager;
+import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
@@ -9,6 +11,7 @@ import android.graphics.Canvas;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.Build;
+import android.os.Process;
 import android.provider.Settings;
 import android.util.Base64;
 import com.getcapacitor.JSArray;
@@ -58,36 +61,57 @@ public class FocusPlugin extends Plugin {
     @PluginMethod
     public void getStatus(PluginCall call) {
         JSObject r = new JSObject();
-        r.put("serviceEnabled", isServiceEnabled());
+        r.put("usageAccess", hasUsageAccess());
+        r.put("overlay", Settings.canDrawOverlays(getContext()));
+        AlarmManager am = (AlarmManager) getContext().getSystemService(Context.ALARM_SERVICE);
+        r.put("exactAlarm", Build.VERSION.SDK_INT < 31 || am.canScheduleExactAlarms());
         r.put("sdk", Build.VERSION.SDK_INT);
         call.resolve(r);
     }
 
-    private boolean isServiceEnabled() {
-        String enabled = Settings.Secure.getString(getContext().getContentResolver(), Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
-        if (enabled == null) return false;
-        ComponentName me = new ComponentName(getContext(), FocusAccessibilityService.class);
-        for (String s : enabled.split(":")) {
-            ComponentName c = ComponentName.unflattenFromString(s);
-            if (me.equals(c)) return true;
+    private boolean hasUsageAccess() {
+        AppOpsManager ops = (AppOpsManager) getContext().getSystemService(Context.APP_OPS_SERVICE);
+        int mode = Build.VERSION.SDK_INT >= 29
+            ? ops.unsafeCheckOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS, Process.myUid(), getContext().getPackageName())
+            : ops.checkOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS, Process.myUid(), getContext().getPackageName());
+        return mode == AppOpsManager.MODE_ALLOWED;
+    }
+
+    private void openSettings(PluginCall call, Intent i) {
+        try {
+            getContext().startActivity(i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        } catch (Exception e) {
+            // Algunos fabricantes no tienen la pantalla concreta: se abre la info de la app.
+            getContext().startActivity(
+                new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + getContext().getPackageName()))
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            );
         }
-        return false;
-    }
-
-    @PluginMethod
-    public void openAccessibilitySettings(PluginCall call) {
-        Intent i = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        getContext().startActivity(i);
         call.resolve();
     }
 
-    /** Info de la app: en Android 13+ hay que «Permitir ajustes restringidos» desde aquí. */
+    /** «Acceso de uso»: permite saber qué app está en primer plano. */
     @PluginMethod
-    public void openAppSettings(PluginCall call) {
-        Intent i = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + getContext().getPackageName()))
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        getContext().startActivity(i);
-        call.resolve();
+    public void openUsageAccessSettings(PluginCall call) {
+        Intent i = new Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS);
+        if (Build.VERSION.SDK_INT >= 29) i.setData(Uri.parse("package:" + getContext().getPackageName()));
+        openSettings(call, i);
+    }
+
+    /** «Mostrar sobre otras apps»: permite abrir hiSleeper encima de la app bloqueada. */
+    @PluginMethod
+    public void openOverlaySettings(PluginCall call) {
+        openSettings(call, new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + getContext().getPackageName())));
+    }
+
+    /** «Alarmas y recordatorios»: para empezar el bloqueo a la hora exacta. */
+    @PluginMethod
+    public void openExactAlarmSettings(PluginCall call) {
+        if (Build.VERSION.SDK_INT < 31) {
+            call.resolve();
+            return;
+        }
+        openSettings(call, new Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:" + getContext().getPackageName())));
     }
 
     @PluginMethod
@@ -96,7 +120,7 @@ public class FocusPlugin extends Plugin {
             PackageManager pm = getContext().getPackageManager();
             Intent launcher = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER);
             List<ResolveInfo> infos = pm.queryIntentActivities(launcher, 0);
-            Set<String> exempt = FocusAccessibilityService.exemptPackages(getContext());
+            Set<String> exempt = FocusApps.exemptPackages(getContext());
             Set<String> seen = new HashSet<>();
             JSArray apps = new JSArray();
             for (ResolveInfo ri : infos) {
@@ -138,6 +162,7 @@ public class FocusPlugin extends Plugin {
         try {
             for (int i = 0; i < packages.length(); i++) pkgs.add(packages.getString(i));
             new FocusStore(getContext()).save(enabled, pkgs, new JSONArray(windows.toString()));
+            FocusScheduler.sync(getContext());
             call.resolve();
         } catch (JSONException e) {
             call.reject("Configuración no válida: " + e.getMessage());
@@ -152,6 +177,7 @@ public class FocusPlugin extends Plugin {
             for (int i = 0; i < arr.length(); i++) ids.add(arr.getString(i));
         } catch (JSONException ignored) {}
         new FocusStore(getContext()).unlock(ids);
+        FocusScheduler.scheduleNext(getContext());
         call.resolve();
     }
 

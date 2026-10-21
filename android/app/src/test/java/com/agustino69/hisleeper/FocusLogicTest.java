@@ -49,4 +49,11 @@ public class FocusLogicTest {
         assertEquals("night-1", FocusLogic.active(windows, 2000, none).id);
         assertNull(FocusLogic.active(windows, 500, none));
     }
+
+    @Test
+    public void proximoInicioParaProgramarLaAlarma() {
+        assertEquals(1000, FocusLogic.nextStart(windows, 0));
+        assertEquals(5000, FocusLogic.nextStart(windows, 4500));
+        assertEquals(0, FocusLogic.nextStart(windows, 9000));
+    }
 }
