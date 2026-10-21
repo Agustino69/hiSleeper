@@ -1,11 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { ScreenHeader } from '../components/ScreenHeader';
 import { engine } from '../lib/audio/engine';
 import { db, uid } from '../lib/db';
 import { fmtClock, fmtDate, fmtMinutes } from '../lib/format';
 import { onJournalSaved } from '../lib/focusBridge';
 import { useStore } from '../lib/store';
 import type { JournalEntry, NightLog } from '../lib/types';
-import { Empty, RecordButton, Sheet } from '../components/ui';
+import { Empty, RecordButton, Sheet, type SheetHandle } from '../components/ui';
+import { toast } from '../lib/toast';
+import { haptic } from '../lib/haptics';
 
 const HIT = ['No apareció', 'Algo relacionado', 'Claramente', '¡Sueño lúcido / total!'];
 
@@ -46,10 +49,9 @@ export function JournalScreen({ forNight, onConsumed }: { forNight?: string; onC
 
   return (
     <div className="screen">
-      <header className="screen-head">
-        <h1>Diario</h1>
+      <ScreenHeader title="Diario">
         <p className="muted">Anotar al despertar multiplica lo que recuerdas de tus sueños y te dice qué funciona.</p>
-      </header>
+      </ScreenHeader>
 
       {journal.length > 0 && (
         <div className="stats">
@@ -128,7 +130,8 @@ export function JournalScreen({ forNight, onConsumed }: { forNight?: string; onC
 function EntryEditor({ entry, onClose }: { entry: JournalEntry; onClose: () => void }) {
   const { journal, nights, programs, refresh } = useStore();
   const [e, setE] = useState(entry);
-  const isNew = !journal.some((j) => j.id === e.id);
+  const [isNew] = useState(() => !journal.some((j) => j.id === entry.id));
+  const sheet = useRef<SheetHandle>(null);
   const night = nights.find((n) => n.id === e.nightLogId);
   const nightPrograms = night ? programs.filter((p) => night.programIds.includes(p.id)) : [];
   const dream = nightPrograms.find((p) => p.goal === 'dream');
@@ -138,20 +141,36 @@ function EntryEditor({ entry, onClose }: { entry: JournalEntry; onClose: () => v
   async function save() {
     await db.journal.save(e);
     // Reto matutino «anotar mi sueño»: desbloquea las apps.
-    if (await onJournalSaved(e.text)) alert('🔓 ¡Buen comienzo! Tus apps están desbloqueadas.');
+    if (await onJournalSaved(e.text)) {
+      haptic('success');
+      toast('🔓 ¡Buen comienzo! Tus apps están desbloqueadas.');
+    } else {
+      toast('Sueño guardado');
+    }
     await refresh();
-    onClose();
+    sheet.current?.dismiss();
   }
 
   async function remove() {
-    if (!confirm('¿Borrar esta entrada?')) return;
-    await db.journal.remove(e);
+    const saved = journal.find((j) => j.id === entry.id) ?? entry;
+    const blob = saved.blobKey ? await db.blobs.get(saved.blobKey) : undefined;
+    await db.journal.remove(saved);
     await refresh();
-    onClose();
+    sheet.current?.dismiss();
+    toast('Entrada borrada', {
+      action: {
+        label: 'Deshacer',
+        run: async () => {
+          if (saved.blobKey && blob) await db.blobs.put(saved.blobKey, blob);
+          await db.journal.save(saved);
+          await refresh();
+        },
+      },
+    });
   }
 
   return (
-    <Sheet title={isNew ? '¿Qué soñaste?' : fmtDate(e.createdAt)} onClose={onClose}>
+    <Sheet title={isNew ? '¿Qué soñaste?' : fmtDate(e.createdAt)} onClose={onClose} ref={sheet}>
       {night && <NightSummary night={night} />}
       <label className="field check">
         <input type="checkbox" checked={e.rememberedDream} onChange={(x) => setE({ ...e, rememberedDream: x.target.checked })} />

@@ -87,6 +87,8 @@ export const db = {
   blobs: {
     get: (key: string) => get<Blob>('blobs', key),
     remove: (key: string) => del('blobs', key),
+    /** Restaura un blob con su clave original (deshacer). */
+    put: (key: string, blob: Blob) => put('blobs', key, blob),
     async add(blob: Blob): Promise<string> {
       const key = uid();
       await put('blobs', key, blob);

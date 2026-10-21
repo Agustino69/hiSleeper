@@ -9,7 +9,10 @@ import { specFromStyle, styleById, VOICE_STYLES } from '../lib/tts/presets';
 import { encodeWav, renderVoice } from '../lib/tts/render';
 import { usePiperVoice } from '../lib/tts/usePiper';
 import type { SynthSpec, Track } from '../lib/types';
-import { Sheet } from './ui';
+import { rangeFill, Sheet, type SheetHandle } from './ui';
+import { Segmented } from './Segmented';
+import { toast } from '../lib/toast';
+import { haptic } from '../lib/haptics';
 
 type EngineChoice = SynthSpec['engine'] | 'system';
 
@@ -30,6 +33,7 @@ export function VoiceStudio({ track, onClose }: { track?: Track; onClose: () => 
   const [keyDraft, setKeyDraft] = useState('');
   const [showFine, setShowFine] = useState(!!track);
   const preview = useRef<{ key: string; buf: AudioBuffer } | null>(null);
+  const sheet = useRef<SheetHandle>(null);
   const textRef = useRef<HTMLTextAreaElement>(null);
   const piper = usePiperVoice(spec.engine === 'piper' ? spec.voice : DEFAULT_PIPER_VOICE);
 
@@ -127,7 +131,9 @@ export function VoiceStudio({ track, onClose }: { track?: Track; onClose: () => 
       await db.tracks.save(next);
       engine.forgetTrack(next.id);
       await refresh();
-      onClose();
+      haptic('commit');
+      toast(`«${next.name}» guardada`);
+      sheet.current?.dismiss();
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -140,7 +146,7 @@ export function VoiceStudio({ track, onClose }: { track?: Track; onClose: () => 
   const blocked = !text.trim() || piperBlocked || openaiBlocked || !!busy;
 
   return (
-    <Sheet title={track ? 'Editar voz' : 'Estudio de voz'} onClose={onClose}>
+    <Sheet title={track ? 'Editar voz' : 'Estudio de voz'} onClose={onClose} ref={sheet} size="full">
       <label className="field">
         <span>Nombre</span>
         <input value={name} onChange={(e) => setName(e.target.value)} placeholder="p. ej. Pirata · zarpar" />
@@ -181,20 +187,16 @@ export function VoiceStudio({ track, onClose }: { track?: Track; onClose: () => 
 
       <fieldset className="field">
         <legend>Motor de voz</legend>
-        <div className="segmented">
-          <button className={engineChoice === 'piper' ? 'on' : ''} onClick={() => chooseEngine('piper')} type="button">
-            Neural
-            <small>en el teléfono</small>
-          </button>
-          <button className={engineChoice === 'openai' ? 'on' : ''} onClick={() => chooseEngine('openai')} type="button">
-            Nube
-            <small>más expresiva</small>
-          </button>
-          <button className={engineChoice === 'system' ? 'on' : ''} onClick={() => chooseEngine('system')} type="button">
-            Básica
-            <small>del sistema</small>
-          </button>
-        </div>
+        <Segmented
+          label="Motor de voz"
+          value={engineChoice}
+          onChange={chooseEngine}
+          options={[
+            { value: 'piper', label: 'Neural', hint: 'en el teléfono' },
+            { value: 'openai', label: 'Nube', hint: 'más expresiva' },
+            { value: 'system', label: 'Básica', hint: 'del sistema' },
+          ]}
+        />
 
         {engineChoice === 'piper' && (
           <>
@@ -341,7 +343,15 @@ function Fine(props: {
         <span>{props.label}</span>
         <b>{props.fmt(props.value)}</b>
       </span>
-      <input type="range" min={props.min} max={props.max} step={props.step ?? 1} value={props.value} onChange={(e) => props.onChange(Number(e.target.value))} />
+      <input
+        type="range"
+        min={props.min}
+        max={props.max}
+        step={props.step ?? 1}
+        value={props.value}
+        style={rangeFill(props.value, props.min, props.max)}
+        onChange={(e) => props.onChange(Number(e.target.value))}
+      />
       {props.hint && <small>{props.hint}</small>}
     </label>
   );

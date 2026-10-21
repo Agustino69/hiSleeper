@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { db, uid } from '../lib/db';
 import { CUE_SOUNDS, NOISE_TYPES } from '../lib/audio/synth';
 import { GOAL_INFO } from '../lib/format';
@@ -8,7 +8,10 @@ import { specFromStyle, styleById, type Template } from '../lib/tts/presets';
 import { encodeWav, renderVoice } from '../lib/tts/render';
 import { usePiperVoice } from '../lib/tts/usePiper';
 import type { Track } from '../lib/types';
-import { Sheet } from './ui';
+import { Sheet, type SheetHandle } from './ui';
+import { Segmented } from './Segmented';
+import { toast } from '../lib/toast';
+import { haptic } from '../lib/haptics';
 
 type Choice = 'piper' | 'openai' | 'system';
 
@@ -22,6 +25,7 @@ export function TemplateSheet({ template, onClose }: { template: Template; onClo
   const [choice, setChoice] = useState<Choice>('piper');
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState('');
+  const sheet = useRef<SheetHandle>(null);
 
   useEffect(() => {
     void getOpenAIKey().then((k) => setHasKey(!!k));
@@ -68,7 +72,9 @@ export function TemplateSheet({ template, onClose }: { template: Template; onClo
       });
       if (template.noise && template.noise !== settings.noise) await saveSettings({ ...settings, noise: template.noise });
       await refresh();
-      onClose();
+      haptic('success');
+      toast(`${template.icon} «${template.name}» listo para esta noche`);
+      sheet.current?.dismiss();
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -79,7 +85,7 @@ export function TemplateSheet({ template, onClose }: { template: Template; onClo
   const blocked = !!busy || (choice === 'piper' && !piper.ready);
 
   return (
-    <Sheet title={`${template.icon} ${template.name}`} onClose={onClose}>
+    <Sheet title={`${template.icon} ${template.name}`} onClose={onClose} ref={sheet}>
       <p>{template.blurb}</p>
       <ul className="plain small muted">
         <li>
@@ -104,20 +110,22 @@ export function TemplateSheet({ template, onClose }: { template: Template; onClo
 
       <fieldset className="field">
         <legend>Generar la voz con</legend>
-        <div className="segmented">
-          <button className={choice === 'piper' ? 'on' : ''} onClick={() => setChoice('piper')}>
-            Neural
-            <small>en el teléfono</small>
-          </button>
-          <button className={choice === 'openai' ? 'on' : ''} onClick={() => setChoice('openai')} disabled={!hasKey} title={hasKey ? '' : 'Añade tu clave en el Estudio de voz'}>
-            Nube
-            <small>{hasKey ? 'más expresiva' : 'requiere clave'}</small>
-          </button>
-          <button className={choice === 'system' ? 'on' : ''} onClick={() => setChoice('system')}>
-            Básica
-            <small>sin descarga</small>
-          </button>
-        </div>
+        <Segmented
+          label="Generar la voz con"
+          value={choice}
+          onChange={setChoice}
+          options={[
+            { value: 'piper', label: 'Neural', hint: 'en el teléfono' },
+            {
+              value: 'openai',
+              label: 'Nube',
+              hint: hasKey ? 'más expresiva' : 'requiere clave',
+              disabled: !hasKey,
+              title: hasKey ? undefined : 'Añade tu clave en el Estudio de voz',
+            },
+            { value: 'system', label: 'Básica', hint: 'sin descarga' },
+          ]}
+        />
         {choice === 'piper' &&
           piper.ready === false &&
           (piper.progress != null ? (

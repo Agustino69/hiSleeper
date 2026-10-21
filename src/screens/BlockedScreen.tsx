@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { StepDetector, type FocusConfig } from '../lib/focus';
 import { Focus, loadFocusConfig, unlockMorningNow, type BlockedEvent } from '../lib/focusBridge';
 import { fmtClock } from '../lib/format';
+import { haptic } from '../lib/haptics';
 
 const NIGHT_LINES = [
   'Cada minuto de scroll ahora retrasa tu sueño. {app} seguirá ahí mañana.',
@@ -105,6 +106,7 @@ function MorningLock({ cfg, event, onClose, onJournal }: { cfg: FocusConfig; eve
 
   async function unlock() {
     await unlockMorningNow();
+    haptic('success');
     setDone(true);
   }
 

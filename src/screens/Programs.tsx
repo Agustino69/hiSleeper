@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import { ScreenHeader } from '../components/ScreenHeader';
 import { engine } from '../lib/audio/engine';
 import { CUE_SOUNDS } from '../lib/audio/synth';
 import { db, uid } from '../lib/db';
@@ -6,7 +7,8 @@ import { fmtDate, GOAL_INFO, isToday } from '../lib/format';
 import { volumeToGain } from '../lib/schedule';
 import { useStore } from '../lib/store';
 import type { CueSoundId, Goal, Program } from '../lib/types';
-import { Empty, Sheet } from '../components/ui';
+import { Empty, Sheet, type SheetHandle } from '../components/ui';
+import { toast } from '../lib/toast';
 import { PrepareScreen } from './Prepare';
 import { TemplateSheet } from '../components/TemplateSheet';
 import { TEMPLATES, type Template } from '../lib/tts/presets';
@@ -29,11 +31,17 @@ export function ProgramsScreen() {
   const [preparing, setPreparing] = useState<Program | null>(null);
   const [picking, setPicking] = useState(false);
   const [template, setTemplate] = useState<Template | null>(null);
+  const pickSheet = useRef<SheetHandle>(null);
+  // Lo elegido en la hoja de selección se abre cuando esa hoja termina de salir.
+  const afterPick = useRef<(() => void) | null>(null);
+  const pickThen = (next: () => void) => {
+    afterPick.current = next;
+    pickSheet.current?.dismiss();
+  };
 
   function create(goal: Goal) {
     const used = new Set(programs.map((p) => p.cue));
     const cue = CUE_SOUNDS.find((c) => !used.has(c.id))?.id ?? 'cuenco';
-    setPicking(false);
     setEditing({
       id: uid(),
       name: '',
@@ -53,10 +61,9 @@ export function ProgramsScreen() {
 
   return (
     <div className="screen">
-      <header className="screen-head">
-        <h1>Objetivos</h1>
+      <ScreenHeader title="Objetivos">
         <p className="muted">Cada objetivo agrupa una señal sonora, tus pistas y lo que preparas antes de dormir.</p>
-      </header>
+      </ScreenHeader>
 
       <button className="primary wide" onClick={() => setPicking(true)}>
         ＋ Nuevo objetivo
@@ -101,17 +108,22 @@ export function ProgramsScreen() {
       )}
 
       {picking && (
-        <Sheet title="¿Qué quieres lograr?" onClose={() => setPicking(false)}>
+        <Sheet
+          title="¿Qué quieres lograr?"
+          ref={pickSheet}
+          onClose={() => {
+            setPicking(false);
+            afterPick.current?.();
+            afterPick.current = null;
+          }}
+        >
           <h3>Plantillas listas</h3>
           <div className="template-grid">
             {TEMPLATES.map((t) => (
               <button
                 key={t.id}
                 className="template-card"
-                onClick={() => {
-                  setPicking(false);
-                  setTemplate(t);
-                }}
+                onClick={() => pickThen(() => setTemplate(t))}
               >
                 <span className="style-icon">{t.icon}</span>
                 <b>{t.name}</b>
@@ -122,7 +134,7 @@ export function ProgramsScreen() {
           <h3>O desde cero</h3>
           <div className="goal-pick">
             {(Object.keys(GOAL_INFO) as Goal[]).map((g) => (
-              <button key={g} className="card goal-option" onClick={() => create(g)}>
+              <button key={g} className="card goal-option" onClick={() => pickThen(() => create(g))}>
                 <span className="goal-icon">{GOAL_INFO[g].icon}</span>
                 <span>
                   <b>{GOAL_INFO[g].label}</b>
@@ -143,27 +155,36 @@ export function ProgramsScreen() {
 function ProgramEditor({ program, onClose }: { program: Program; onClose: () => void }) {
   const { programs, tracks, refresh } = useStore();
   const [p, setP] = useState(program);
-  const isNew = !programs.some((x) => x.id === p.id);
+  const [isNew] = useState(() => !programs.some((x) => x.id === program.id));
+  const sheet = useRef<SheetHandle>(null);
   const clash = p.cue && programs.find((x) => x.id !== p.id && x.cue === p.cue && x.goal === 'review' && p.goal === 'review');
 
   async function save() {
     await db.programs.save({ ...p, name: p.name.trim() || GOAL_INFO[p.goal].label });
     await refresh();
-    onClose();
+    sheet.current?.dismiss();
   }
 
   async function remove() {
-    if (!confirm(`¿Borrar «${p.name}»? Las pistas se conservan.`)) return;
-    await db.programs.remove(p.id);
+    await db.programs.remove(program.id);
     await refresh();
-    onClose();
+    sheet.current?.dismiss();
+    toast(`«${program.name}» borrado · las pistas se conservan`, {
+      action: {
+        label: 'Deshacer',
+        run: async () => {
+          await db.programs.save(program);
+          await refresh();
+        },
+      },
+    });
   }
 
   const toggleTrack = (id: string) =>
     setP((x) => ({ ...x, trackIds: x.trackIds.includes(id) ? x.trackIds.filter((t) => t !== id) : [...x.trackIds, id] }));
 
   return (
-    <Sheet title={isNew ? `Nuevo: ${GOAL_INFO[p.goal].label}` : 'Editar objetivo'} onClose={onClose}>
+    <Sheet title={isNew ? `Nuevo: ${GOAL_INFO[p.goal].label}` : 'Editar objetivo'} onClose={onClose} ref={sheet}>
       <label className="field">
         <span>Nombre</span>
         <input value={p.name} onChange={(e) => setP({ ...p, name: e.target.value })} placeholder={GOAL_INFO[p.goal].label} />

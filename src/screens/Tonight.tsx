@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { ScreenHeader } from '../components/ScreenHeader';
 import { engine } from '../lib/audio/engine';
 import { NOISE_TYPES } from '../lib/audio/synth';
 import { db, uid } from '../lib/db';
@@ -7,6 +8,7 @@ import { isNative } from '../lib/native';
 import { fmtClock, fmtMinutes, GOAL_INFO, isToday } from '../lib/format';
 import { estimateHypnogram, minutesUntil, planWindows, suggestWakeTimes, volumeToGain } from '../lib/schedule';
 import { useStore } from '../lib/store';
+import { haptic } from '../lib/haptics';
 import type { NightLog, NightSettings, NoiseType } from '../lib/types';
 import { Hypnogram } from '../components/Hypnogram';
 import { Slider } from '../components/ui';
@@ -101,18 +103,18 @@ export function TonightScreen({
       };
       await db.nights.save(log);
       await db.activeNight.set(log.id);
+      haptic('commit');
       onStart(log);
     });
   }
 
   return (
     <div className="screen">
-      <header className="screen-head">
-        <h1>Esta noche</h1>
+      <ScreenHeader title="Esta noche">
         <p className="muted">
           Son las {fmtClock(now)} · dormirás unas {fmtMinutes(total - settings.latencyMin)}
         </p>
-      </header>
+      </ScreenHeader>
 
       {resumable && (
         <div className="card banner">

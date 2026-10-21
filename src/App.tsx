@@ -3,6 +3,7 @@ import { Focus, focusSupported, syncFocus, type BlockedEvent } from './lib/focus
 import { useStore } from './lib/store';
 import type { NightLog } from './lib/types';
 import { BlockedScreen } from './screens/BlockedScreen';
+import { ToastHost } from './components/ToastHost';
 import { GuideScreen } from './screens/Guide';
 import { JournalScreen } from './screens/Journal';
 import { NightMode } from './screens/NightMode';
@@ -58,6 +59,7 @@ export function App() {
     return (
       <>
       {overlay}
+      <ToastHost />
       <NightMode
         log={night}
         onExit={(id) => {
@@ -75,6 +77,7 @@ export function App() {
   return (
     <div className="app">
       {overlay}
+      <ToastHost />
       <main>
         {tab === 'tonight' && (
           <TonightScreen onStart={setNight} onGoTo={setTab} onMorningUnlock={() => setBlocked({ kind: 'morning', at: Date.now() })} />

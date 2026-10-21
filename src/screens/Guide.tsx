@@ -1,12 +1,12 @@
 import { isNative } from '../lib/native';
+import { ScreenHeader } from '../components/ScreenHeader';
 
 export function GuideScreen() {
   return (
     <div className="screen guide">
-      <header className="screen-head">
-        <h1>Cómo funciona</h1>
+      <ScreenHeader title="Cómo funciona">
         <p className="muted">Lo que dice la investigación y cómo lo usa la app.</p>
-      </header>
+      </ScreenHeader>
 
       <section className="card">
         <h3>Lo honesto primero</h3>

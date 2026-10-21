@@ -1,10 +1,13 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import { ScreenHeader } from '../components/ScreenHeader';
 import { engine } from '../lib/audio/engine';
 import { db, uid } from '../lib/db';
 import { volumeToGain } from '../lib/schedule';
 import { useStore } from '../lib/store';
 import type { Track } from '../lib/types';
-import { Empty, RecordButton, Sheet } from '../components/ui';
+import { Empty, RecordButton, Sheet, type SheetHandle } from '../components/ui';
+import { toast } from '../lib/toast';
+import { haptic } from '../lib/haptics';
 import { VoiceStudio } from '../components/VoiceStudio';
 import { styleById } from '../lib/tts/presets';
 
@@ -14,6 +17,7 @@ export function TracksScreen() {
   const { tracks, programs, refresh } = useStore();
   const [adding, setAdding] = useState<null | 'voice' | 'studio'>(null);
   const [editing, setEditing] = useState<Track | null>(null);
+  const [renaming, setRenaming] = useState<Track | null>(null);
   const [playing, setPlaying] = useState<string | null>(null);
 
   async function play(t: Track) {
@@ -43,31 +47,32 @@ export function TracksScreen() {
     await refresh();
   }
 
-  async function rename(t: Track) {
-    const name = prompt('Nombre de la pista', t.name)?.trim();
-    if (!name) return;
-    await db.tracks.save({ ...t, name });
-    await refresh();
-  }
-
+  /** Se borra al momento y se ofrece deshacer (en lugar de pedir confirmación). */
   async function remove(t: Track) {
     const users = programs.filter((p) => p.trackIds.includes(t.id));
-    const msg = users.length
-      ? `«${t.name}» se usa en ${users.map((p) => p.name).join(', ')}. ¿Borrarla igualmente?`
-      : `¿Borrar «${t.name}»?`;
-    if (!confirm(msg)) return;
+    const blob = t.blobKey ? await db.blobs.get(t.blobKey) : undefined;
     for (const p of users) await db.programs.save({ ...p, trackIds: p.trackIds.filter((id) => id !== t.id) });
     engine.forgetTrack(t.id);
     await db.tracks.remove(t);
     await refresh();
+    toast(users.length ? `«${t.name}» borrada (también de ${users.map((p) => p.name).join(', ')})` : `«${t.name}» borrada`, {
+      action: {
+        label: 'Deshacer',
+        run: async () => {
+          if (t.blobKey && blob) await db.blobs.put(t.blobKey, blob);
+          await db.tracks.save(t);
+          for (const p of users) await db.programs.save(p);
+          await refresh();
+        },
+      },
+    });
   }
 
   return (
     <div className="screen">
-      <header className="screen-head">
-        <h1>Pistas</h1>
+      <ScreenHeader title="Pistas">
         <p className="muted">Lo que sonará de noche: voces IA con estilo, tu propia voz o audios que ya tengas.</p>
-      </header>
+      </ScreenHeader>
 
       <div className="actions">
         <button className="primary" onClick={() => setAdding('studio')}>
@@ -111,7 +116,7 @@ export function TracksScreen() {
               </div>
               <button
                 className="ghost icon"
-                onClick={() => (t.kind === 'voice' || t.kind === 'tts' ? setEditing(t) : rename(t))}
+                onClick={() => (t.kind === 'voice' || t.kind === 'tts' ? setEditing(t) : setRenaming(t))}
                 aria-label={t.kind === 'voice' || t.kind === 'tts' ? 'Editar voz' : 'Renombrar'}
               >
                 ✎
@@ -127,6 +132,7 @@ export function TracksScreen() {
       {adding === 'voice' && <VoiceSheet onClose={() => setAdding(null)} />}
       {adding === 'studio' && <VoiceStudio onClose={() => setAdding(null)} />}
       {editing && <VoiceStudio track={editing} onClose={() => setEditing(null)} />}
+      {renaming && <RenameSheet track={renaming} onClose={() => setRenaming(null)} />}
     </div>
   );
 }
@@ -134,6 +140,7 @@ export function TracksScreen() {
 function VoiceSheet({ onClose }: { onClose: () => void }) {
   const { refresh } = useStore();
   const [name, setName] = useState('');
+  const sheet = useRef<SheetHandle>(null);
 
   async function save(blob: Blob, sec: number) {
     const blobKey = await db.blobs.add(blob);
@@ -147,11 +154,13 @@ function VoiceSheet({ onClose }: { onClose: () => void }) {
       createdAt: Date.now(),
     });
     await refresh();
-    onClose();
+    haptic('commit');
+    toast('Grabación guardada');
+    sheet.current?.dismiss();
   }
 
   return (
-    <Sheet title="Grabar mi voz" onClose={onClose}>
+    <Sheet title="Grabar mi voz" onClose={onClose} ref={sheet}>
       <label className="field">
         <span>Nombre</span>
         <input value={name} onChange={(e) => setName(e.target.value)} placeholder="p. ej. Ciclo de Krebs" />
@@ -163,6 +172,36 @@ function VoiceSheet({ onClose }: { onClose: () => void }) {
         <li>Para soñar: describe la escena con detalles sensoriales: «Estoy en la playa, siento la arena tibia…».</li>
       </ul>
       <RecordButton onDone={save} />
+    </Sheet>
+  );
+}
+
+function RenameSheet({ track, onClose }: { track: Track; onClose: () => void }) {
+  const { refresh } = useStore();
+  const [name, setName] = useState(track.name);
+  const sheet = useRef<SheetHandle>(null);
+
+  async function save() {
+    if (!name.trim()) return;
+    await db.tracks.save({ ...track, name: name.trim() });
+    await refresh();
+    sheet.current?.dismiss();
+  }
+
+  return (
+    <Sheet title="Renombrar pista" onClose={onClose} ref={sheet}>
+      <form
+        className="stack"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void save();
+        }}
+      >
+        <input value={name} onChange={(e) => setName(e.target.value)} autoFocus aria-label="Nombre" />
+        <button className="primary" disabled={!name.trim()}>
+          Guardar
+        </button>
+      </form>
     </Sheet>
   );
 }

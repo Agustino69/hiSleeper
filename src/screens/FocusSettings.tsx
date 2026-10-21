@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Slider } from '../components/ui';
+import { Sheet, Slider } from '../components/ui';
+import { Segmented } from '../components/Segmented';
 import { SUGGESTED_PACKAGES, type FocusConfig } from '../lib/focus';
 import { Focus, focusSupported, isFocusConfigured, loadFocusConfig, saveFocusConfig, type Attempt, type InstalledApp } from '../lib/focusBridge';
 import { useStore } from '../lib/store';
@@ -75,13 +76,7 @@ export function FocusSettings({ onClose }: { onClose: () => void }) {
   const selectedFirst = [...filtered].sort((a, b) => Number(cfg.packages.includes(b.package)) - Number(cfg.packages.includes(a.package)));
 
   return (
-    <div className="fullscreen">
-      <header className="row">
-        <h2 className="grow">📵 Sin pantallas en la cama</h2>
-        <button className="ghost icon" onClick={onClose} aria-label="Cerrar">
-          ✕
-        </button>
-      </header>
+    <Sheet title="📵 Sin pantallas en la cama" onClose={onClose} size="full">
 
       <p className="muted">
         Las apps que elijas se bloquean desde un rato antes de dormir y por la mañana hasta que te levantas. Romper el
@@ -181,16 +176,15 @@ export function FocusSettings({ onClose }: { onClose: () => void }) {
             </label>
             {cfg.morningLock && (
               <>
-                <div className="segmented two">
-                  <button className={cfg.challenge === 'steps' ? 'on' : ''} onClick={() => set({ challenge: 'steps' })}>
-                    🚶 Caminar
-                    <small>{cfg.steps} pasos</small>
-                  </button>
-                  <button className={cfg.challenge === 'journal' ? 'on' : ''} onClick={() => set({ challenge: 'journal' })}>
-                    ✍️ Anotar mi sueño
-                    <small>en el diario</small>
-                  </button>
-                </div>
+                <Segmented
+                  label="Reto para desbloquear"
+                  value={cfg.challenge}
+                  onChange={(v) => set({ challenge: v })}
+                  options={[
+                    { value: 'steps', label: '🚶 Caminar', hint: `${cfg.steps} pasos` },
+                    { value: 'journal', label: '✍️ Anotar mi sueño', hint: 'en el diario' },
+                  ]}
+                />
                 {cfg.challenge === 'steps' && (
                   <Slider label="Pasos" value={cfg.steps} min={20} max={200} step={10} onChange={(v) => set({ steps: v })} hint="Camina con el móvil en la mano: hasta el baño o la cocina." />
                 )}
@@ -210,16 +204,15 @@ export function FocusSettings({ onClose }: { onClose: () => void }) {
 
           <section className="card">
             <h3>4 · Firmeza</h3>
-            <div className="segmented two">
-              <button className={cfg.allowOverride ? 'on' : ''} onClick={() => set({ allowOverride: true })}>
-                Con fricción
-                <small>abrir tras esperar</small>
-              </button>
-              <button className={!cfg.allowOverride ? 'on' : ''} onClick={() => set({ allowOverride: false })}>
-                Estricto
-                <small>sin excepciones</small>
-              </button>
-            </div>
+            <Segmented
+              label="Firmeza"
+              value={cfg.allowOverride ? 'friction' : 'strict'}
+              onChange={(v) => set({ allowOverride: v === 'friction' })}
+              options={[
+                { value: 'friction', label: 'Con fricción', hint: 'abrir tras esperar' },
+                { value: 'strict', label: 'Estricto', hint: 'sin excepciones' },
+              ]}
+            />
             {cfg.allowOverride ? (
               <>
                 <Slider label="Espera para abrir de todos modos" value={cfg.overrideDelaySec} min={5} max={60} step={5} unit=" s" onChange={(v) => set({ overrideDelaySec: v })} />
@@ -251,6 +244,6 @@ export function FocusSettings({ onClose }: { onClose: () => void }) {
           </section>
         </>
       )}
-    </div>
+    </Sheet>
   );
 }
