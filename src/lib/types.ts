@@ -14,13 +14,21 @@ export type NoiseType = 'none' | 'pink' | 'brown' | 'ocean' | 'white';
 
 export type TrackKind = 'recording' | 'file' | 'tts' | 'voice';
 
-export type SynthEngine = 'piper' | 'openai';
+/** 'openai' solo existe en pistas antiguas: al editarlas se usa Gemini. */
+export type SynthEngine = 'supertonic' | 'piper' | 'gemini' | 'openai';
 
 /** Ajustes de una voz generada (neural en el dispositivo o en la nube). */
 export interface SynthSpec {
   engine: SynthEngine;
-  /** Voz Piper ("es_MX-claude-high#0") o voz de OpenAI ("ash"). */
+  /** Voz Supertonic ("st:F2"), Piper ("es_MX-claude-high#0") o Gemini ("Sulafat"). */
   voice: string;
+  /** Supertonic: segunda voz para mezclar el timbre y proporción (0-100). */
+  mixWith?: string;
+  mix?: number;
+  /** Supertonic: pasos de refinado (más = más fino y más lento). */
+  quality?: number;
+  /** Idioma del guion (por defecto español). */
+  lang?: string;
   styleId?: string;
   /** Ritmo: 0.6 (muy lento) – 1.4 (rápido). */
   speed: number;

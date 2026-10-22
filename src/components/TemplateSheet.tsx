@@ -3,32 +3,31 @@ import { db, uid } from '../lib/db';
 import { CUE_SOUNDS, NOISE_TYPES } from '../lib/audio/synth';
 import { GOAL_INFO } from '../lib/format';
 import { useStore } from '../lib/store';
-import { getOpenAIKey } from '../lib/tts/openai';
+import { getGeminiKey } from '../lib/tts/gemini';
 import { specFromStyle, styleById, type Template } from '../lib/tts/presets';
 import { encodeWav, renderVoice } from '../lib/tts/render';
-import { usePiperVoice } from '../lib/tts/usePiper';
+import { useSupertonic } from '../lib/tts/usePiper';
 import type { Track } from '../lib/types';
 import { Sheet, type SheetHandle } from './ui';
 import { Segmented } from './Segmented';
 import { toast } from '../lib/toast';
 import { haptic } from '../lib/haptics';
 
-type Choice = 'piper' | 'openai' | 'system';
+type Choice = 'supertonic' | 'gemini' | 'system';
 
 /** Crea un objetivo completo desde una plantilla: genera las voces, la señal y el fondo. */
 export function TemplateSheet({ template, onClose }: { template: Template; onClose: () => void }) {
   const { settings, saveSettings, refresh } = useStore();
   const style = styleById(template.styleId)!;
-  const voiceId = template.piperVoice ?? style.piperVoice;
-  const piper = usePiperVoice(voiceId);
+  const device = useSupertonic();
   const [hasKey, setHasKey] = useState(false);
-  const [choice, setChoice] = useState<Choice>('piper');
+  const [choice, setChoice] = useState<Choice>('supertonic');
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState('');
   const sheet = useRef<SheetHandle>(null);
 
   useEffect(() => {
-    void getOpenAIKey().then((k) => setHasKey(!!k));
+    void getGeminiKey().then((k) => setHasKey(!!k));
   }, []);
 
   async function create() {
@@ -41,7 +40,7 @@ export function TemplateSheet({ template, onClose }: { template: Template; onClo
         if (choice === 'system') {
           track = { id: uid(), name: t.name, kind: 'tts', text: t.text, ttsRate: style.params.speed * 0.95, createdAt: Date.now() };
         } else {
-          const spec = specFromStyle(style, choice, choice === 'piper' ? voiceId : undefined);
+          const spec = { ...specFromStyle(style, choice), lang: template.lang };
           const buf = await renderVoice(t.text, spec, (d, n) =>
             setBusy(`Voz ${i + 1} de ${template.tracks.length} · frase ${Math.min(d + 1, n)} de ${n}…`),
           );
@@ -82,7 +81,7 @@ export function TemplateSheet({ template, onClose }: { template: Template; onClo
     }
   }
 
-  const blocked = !!busy || (choice === 'piper' && !piper.ready);
+  const blocked = !!busy || (choice === 'supertonic' && !device.ready);
 
   return (
     <Sheet title={`${template.icon} ${template.name}`} onClose={onClose} ref={sheet}>
@@ -115,29 +114,29 @@ export function TemplateSheet({ template, onClose }: { template: Template; onClo
           value={choice}
           onChange={setChoice}
           options={[
-            { value: 'piper', label: 'Neural', hint: 'en el teléfono' },
+            { value: 'supertonic', label: 'Natural', hint: 'en el teléfono' },
             {
-              value: 'openai',
-              label: 'Nube',
-              hint: hasKey ? 'más expresiva' : 'requiere clave',
+              value: 'gemini',
+              label: 'Actuada',
+              hint: hasKey ? 'nube · gratis' : 'requiere clave gratis',
               disabled: !hasKey,
               title: hasKey ? undefined : 'Añade tu clave en el Estudio de voz',
             },
             { value: 'system', label: 'Básica', hint: 'sin descarga' },
           ]}
         />
-        {choice === 'piper' &&
-          piper.ready === false &&
-          (piper.progress != null ? (
+        {choice === 'supertonic' &&
+          device.ready === false &&
+          (device.progress != null ? (
             <div className="download">
-              <progress value={piper.progress} max={1} />
-              <small>Descargando… {Math.round(piper.progress * 100)}%</small>
+              <progress value={device.progress} max={1} />
+              <small>Descargando… {Math.round(device.progress * 100)}%</small>
             </div>
           ) : (
-            <button onClick={piper.download}>⬇ Descargar voz ({piper.sizeMb} MB, una sola vez)</button>
+            <button onClick={device.download}>⬇ Descargar voces naturales ({device.sizeMb} MB, una sola vez)</button>
           ))}
-        {choice === 'piper' && piper.ready && <small className="ok">✓ Voz lista</small>}
-        {piper.error && <small className="error">{piper.error}</small>}
+        {choice === 'supertonic' && device.ready && <small className="ok">✓ Voces listas</small>}
+        {device.error && <small className="error">{device.error}</small>}
       </fieldset>
 
       {error && <p className="error">{error}</p>}

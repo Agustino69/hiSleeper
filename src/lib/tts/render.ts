@@ -1,7 +1,8 @@
 import { normalizeBuffer } from '../audio/synth';
 import type { SynthSpec } from '../types';
-import { openaiSynth } from './openai';
+import { geminiSynth } from './gemini';
 import { piperSynth, type PiperParams } from './piper';
+import { supertonicSynth } from './supertonic';
 
 /**
  * Generación de voz: texto → frases con pausas → síntesis → posproducción
@@ -63,20 +64,49 @@ export function piperParams(spec: SynthSpec): PiperParams {
 
 export type RenderProgress = (done: number, total: number) => void;
 
+/** Etiquetas expresivas que entiende cada motor en el dispositivo. */
+const SUPERTONIC_TAGS = /<(laugh|breath|sigh)>/gi;
+
+/** Quita las etiquetas que el motor no entiende (para que no las lea en voz alta). */
+export function cleanTags(text: string, engine: SynthSpec['engine']): string {
+  if (engine === 'gemini' || engine === 'openai') return text;
+  const keep = engine === 'supertonic' ? SUPERTONIC_TAGS : null;
+  return text
+    .replace(/<[^<>]{1,24}>/g, (tag) => (keep && tag.match(keep) ? tag.toLowerCase() : ' '))
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+export function supertonicParams(spec: SynthSpec) {
+  return {
+    voice: spec.voice,
+    mixWith: spec.mixWith,
+    mix: (spec.mix ?? 0) / 100,
+    // Se acelera lo que el cambio de tono va a ralentizar (y viceversa).
+    speed: spec.speed / pitchRate(spec.pitch),
+    steps: spec.quality ?? 8,
+    // Un poco más de ruido inicial = entonación más variada.
+    temperature: 0.85 + 0.3 * (spec.expressiveness / 100),
+    lang: spec.lang ?? 'es',
+  };
+}
+
 export async function renderVoice(text: string, spec: SynthSpec, onProgress?: RenderProgress): Promise<AudioBuffer> {
-  if (spec.engine === 'openai') {
+  if (spec.engine === 'gemini' || spec.engine === 'openai') {
     onProgress?.(0, 1);
-    const buf = await openaiSynth(text, spec);
+    const buf = await geminiSynth(text, { ...spec, engine: 'gemini' });
     onProgress?.(1, 1);
     return postProcess([{ pcm: buf.getChannelData(0), sampleRate: buf.sampleRate, pauseAfter: 0 }], { ...spec, pitch: 0 });
   }
-  const parts = splitScript(text, spec.pause);
+  const parts = splitScript(cleanTags(text, spec.engine), spec.pause).filter((p) => /[\p{L}\p{N}]/u.test(p.text.replace(/<[^>]*>/g, '')));
   if (!parts.length) throw new Error('Escribe algún texto');
-  const params = piperParams(spec);
   const segments: Array<{ pcm: Float32Array; sampleRate: number; pauseAfter: number }> = [];
   for (let i = 0; i < parts.length; i++) {
     onProgress?.(i, parts.length);
-    const { pcm, sampleRate } = await piperSynth(spec.voice, parts[i].text, params);
+    const { pcm, sampleRate } =
+      spec.engine === 'supertonic'
+        ? await supertonicSynth(parts[i].text, supertonicParams(spec))
+        : await piperSynth(spec.voice, parts[i].text, piperParams(spec));
     segments.push({ pcm, sampleRate, pauseAfter: parts[i].pauseAfter });
   }
   onProgress?.(parts.length, parts.length);

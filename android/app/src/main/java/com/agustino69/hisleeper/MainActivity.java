@@ -8,6 +8,7 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(SleepSessionPlugin.class);
         registerPlugin(FocusPlugin.class);
+        registerPlugin(SupertonicPlugin.class);
         super.onCreate(savedInstanceState);
     }
 }

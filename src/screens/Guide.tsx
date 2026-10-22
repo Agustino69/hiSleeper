@@ -58,19 +58,18 @@ export function GuideScreen() {
         <h3>✨ Voces IA</h3>
         <p>
           En «Pistas → Voz IA» escribes un guion y eliges un estilo (susurro, cuentacuentos, capitán pirata…). Cada
-          estilo ajusta ritmo, expresividad, tono, pausas, eco y calidez; puedes afinarlos a mano.
+          estilo ajusta voz, ritmo, expresividad, tono, pausas, eco y calidez; puedes afinarlos a mano.
         </p>
         <ul>
           <li>
-            <b>Neural en el teléfono:</b> voces naturales que se descargan una vez y funcionan sin conexión.
+            <b>Natural (en el teléfono):</b> 10 voces naturales que se descargan una vez y funcionan gratis y sin
+            conexión. Puedes mezclar dos voces para crear un timbre propio y añadir respiraciones, suspiros o risas.
           </li>
           <li>
-            <b>Nube:</b> la más expresiva, actúa según tus indicaciones («voz ronca de viejo pirata»). Necesita tu clave
-            de OpenAI y conexión solo al generarla.
+            <b>Actuada (nube, gratis):</b> la más expresiva; interpreta indicaciones como «voz ronca de viejo pirata» y
+            etiquetas como susurro o bostezo. Solo necesita una clave gratuita de Google AI Studio.
           </li>
-          <li>
-            Escribe en presente, frases cortas y con detalles de los sentidos. Usa «...» o [pausa 2] para dar aire.
-          </li>
+          <li>Escribe en presente, frases cortas y con detalles de los sentidos. Usa «...» o pausas para dar aire.</li>
         </ul>
       </section>
 

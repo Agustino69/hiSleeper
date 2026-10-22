@@ -1,4 +1,5 @@
 import type { CueSoundId, Goal, NoiseType, SynthSpec } from '../types';
+import { DEFAULT_PIPER_VOICE } from './piper';
 
 /** Estilos de voz: cada uno ajusta todos los controles de una vez. */
 export interface VoiceStyle {
@@ -6,9 +7,12 @@ export interface VoiceStyle {
   icon: string;
   label: string;
   blurb: string;
-  /** Voz Piper sugerida. */
-  piperVoice: string;
-  openaiVoice: string;
+  /** Voz natural en el dispositivo (Supertonic) y, opcionalmente, otra para mezclar el timbre. */
+  deviceVoice: string;
+  mixWith?: string;
+  mix?: number;
+  /** Voz en la nube (Gemini). */
+  cloudVoice: string;
   params: Pick<SynthSpec, 'speed' | 'expressiveness' | 'rhythm' | 'pitch' | 'pause' | 'reverb' | 'warmth'>;
   instructions: string;
 }
@@ -19,8 +23,8 @@ export const VOICE_STYLES: VoiceStyle[] = [
     icon: '🌙',
     label: 'Susurro para dormir',
     blurb: 'Lento, suave y cálido',
-    piperVoice: 'es_MX-claude-high#0',
-    openaiVoice: 'shimmer',
+    deviceVoice: 'st:F2',
+    cloudVoice: 'Enceladus',
     params: { speed: 0.78, expressiveness: 30, rhythm: 30, pitch: -1, pause: 1.6, reverb: 15, warmth: 75 },
     instructions: 'Susurra con voz muy suave, lenta y cálida, como quien acompaña a alguien a dormirse.',
   },
@@ -29,8 +33,8 @@ export const VOICE_STYLES: VoiceStyle[] = [
     icon: '🧘',
     label: 'Meditación guiada',
     blurb: 'Serena, con respiraciones',
-    piperVoice: 'es_ES-sharvard-medium#1',
-    openaiVoice: 'sage',
+    deviceVoice: 'st:F4',
+    cloudVoice: 'Sulafat',
     params: { speed: 0.82, expressiveness: 40, rhythm: 35, pitch: -1, pause: 2, reverb: 30, warmth: 60 },
     instructions: 'Guía una meditación: voz serena, profunda y acogedora, dejando respirar cada frase.',
   },
@@ -39,8 +43,8 @@ export const VOICE_STYLES: VoiceStyle[] = [
     icon: '📖',
     label: 'Cuentacuentos',
     blurb: 'Cálido, con asombro',
-    piperVoice: 'es_MX-claude-high#0',
-    openaiVoice: 'fable',
+    deviceVoice: 'st:F1',
+    cloudVoice: 'Algieba',
     params: { speed: 0.92, expressiveness: 80, rhythm: 75, pitch: 0, pause: 1, reverb: 20, warmth: 50 },
     instructions: 'Narra como un cuentacuentos nocturno: cálido, con asombro y un misterio suave, dando vida a la historia.',
   },
@@ -49,8 +53,10 @@ export const VOICE_STYLES: VoiceStyle[] = [
     icon: '🏴‍☠️',
     label: 'Capitán pirata',
     blurb: 'Grave, teatral y aventurero',
-    piperVoice: 'es_ES-davefx-medium#0',
-    openaiVoice: 'verse',
+    deviceVoice: 'st:M2',
+    mixWith: 'st:M5',
+    mix: 30,
+    cloudVoice: 'Algenib',
     params: { speed: 0.9, expressiveness: 90, rhythm: 80, pitch: -3, pause: 1.1, reverb: 25, warmth: 55 },
     instructions:
       'Eres un viejo capitán pirata contando su aventura junto al fuego del camarote: voz grave y algo ronca, teatral, con picardía y misterio, pero en tono bajo y cercano.',
@@ -60,8 +66,8 @@ export const VOICE_STYLES: VoiceStyle[] = [
     icon: '🌌',
     label: 'Voz del cosmos',
     blurb: 'Profunda y envolvente',
-    piperVoice: 'es_MX-ald-medium#0',
-    openaiVoice: 'onyx',
+    deviceVoice: 'st:M4',
+    cloudVoice: 'Charon',
     params: { speed: 0.8, expressiveness: 55, rhythm: 50, pitch: -2, pause: 1.8, reverb: 75, warmth: 60 },
     instructions: 'Voz profunda y etérea, como un narrador del universo: lenta, envolvente y llena de calma.',
   },
@@ -70,8 +76,8 @@ export const VOICE_STYLES: VoiceStyle[] = [
     icon: '🧚',
     label: 'Bosque encantado',
     blurb: 'Mágica y luminosa',
-    piperVoice: 'es_ES-sharvard-medium#1',
-    openaiVoice: 'nova',
+    deviceVoice: 'st:F3',
+    cloudVoice: 'Leda',
     params: { speed: 0.9, expressiveness: 75, rhythm: 70, pitch: 2, pause: 1.2, reverb: 45, warmth: 45 },
     instructions: 'Voz mágica y luminosa, como un hada que guía por un bosque encantado, con dulzura y asombro.',
   },
@@ -80,8 +86,8 @@ export const VOICE_STYLES: VoiceStyle[] = [
     icon: '💪',
     label: 'Coach de confianza',
     blurb: 'Firme y serena',
-    piperVoice: 'es_MX-ald-medium#0',
-    openaiVoice: 'ash',
+    deviceVoice: 'st:M1',
+    cloudVoice: 'Kore',
     params: { speed: 0.97, expressiveness: 60, rhythm: 45, pitch: 0, pause: 1.2, reverb: 5, warmth: 35 },
     instructions: 'Habla con seguridad y calidez, como un coach que cree en ti: firme pero sereno.',
   },
@@ -90,8 +96,8 @@ export const VOICE_STYLES: VoiceStyle[] = [
     icon: '🎓',
     label: 'Profesor claro',
     blurb: 'Articulado, para repasar',
-    piperVoice: 'es_ES-sharvard-medium#0',
-    openaiVoice: 'cedar',
+    deviceVoice: 'st:M3',
+    cloudVoice: 'Iapetus',
     params: { speed: 0.9, expressiveness: 45, rhythm: 40, pitch: 0, pause: 1.4, reverb: 0, warmth: 30 },
     instructions: 'Explica con claridad, articulando bien cada palabra clave, con el tono tranquilo de un profesor paciente.',
   },
@@ -100,9 +106,14 @@ export const VOICE_STYLES: VoiceStyle[] = [
 export const styleById = (id?: string) => VOICE_STYLES.find((s) => s.id === id);
 
 export function specFromStyle(style: VoiceStyle, engine: SynthSpec['engine'], voice?: string): SynthSpec {
+  const cloud = engine === 'gemini' || engine === 'openai';
+  const device = engine === 'supertonic';
   return {
-    engine,
-    voice: voice ?? (engine === 'openai' ? style.openaiVoice : style.piperVoice),
+    engine: engine === 'openai' ? 'gemini' : engine,
+    voice: voice ?? (cloud ? style.cloudVoice : device ? style.deviceVoice : DEFAULT_PIPER_VOICE),
+    mixWith: device && !voice ? style.mixWith : undefined,
+    mix: device && !voice ? style.mix : undefined,
+    quality: device ? 8 : undefined,
     styleId: style.id,
     ...style.params,
     instructions: style.instructions,
@@ -118,8 +129,8 @@ export interface Template {
   blurb: string;
   cue: CueSoundId | null;
   styleId: string;
-  /** Voz Piper concreta si la plantilla la necesita (p. ej. inglés). */
-  piperVoice?: string;
+  /** Idioma del guion si no es español (p. ej. «en» para vocabulario de inglés). */
+  lang?: string;
   noise?: NoiseType;
   notes: string;
   tracks: Array<{ name: string; text: string }>;
@@ -145,7 +156,7 @@ Sientes la madera tibia del timón bajo tus manos. [pausa]
 El viento salado te despeina, y las velas se hinchan sobre tu cabeza...
 Oyes crujir el casco, las gaviotas, las olas que golpean la proa.
 
-A lo lejos aparece una isla con palmeras. Tu tripulación grita: ¡tierra a la vista!
+A lo lejos aparece una isla con palmeras. Tu tripulación grita: ¡tierra a la vista! <laugh>
 En tu bolsillo llevas un mapa antiguo. Una equis marca el tesoro...
 
 Cuando te duermas, volverás a este barco. Esta noche, en tus sueños, navegas como pirata.`,
@@ -169,7 +180,7 @@ Cuando te duermas, volverás a este barco. Esta noche, en tus sueños, navegas c
     tracks: [
       {
         name: 'Volar · despegar',
-        text: `Imagina que tu cuerpo se vuelve ligero... muy ligero.
+        text: `<breath> Imagina que tu cuerpo se vuelve ligero... muy ligero.
 Tus pies se separan del suelo, y empiezas a flotar. [pausa]
 Subes despacio sobre los tejados, sobre los árboles...
 Abajo, el mar brilla con el último sol de la tarde.
@@ -215,8 +226,8 @@ Esta noche, en tus sueños, viajas por el espacio.`,
     tracks: [
       {
         name: 'Calma · soltar',
-        text: `Mi cuerpo se suelta... [pausa]
-Estoy a salvo. [pausa]
+        text: `<breath> Mi cuerpo se suelta... [pausa]
+<sigh> Estoy a salvo. [pausa]
 Respiro lento... y profundo...
 Todo está en calma.`,
       },
@@ -248,7 +259,7 @@ Cada día me siento más seguro... y más tranquilo.`,
     blurb: 'Ejemplo de repaso: estudia las tarjetas con la señal y de noche se reactivan. Edítalas con tus palabras.',
     cue: 'kalimba',
     styleId: 'profesor',
-    piperVoice: 'en_US-amy-medium#0',
+    lang: 'en',
     notes: 'whisper — susurrar\n\nlighthouse — faro\n\nharbor — puerto\n\nstarry — estrellado\n\nto drift off — quedarse dormido',
     tracks: [{ name: 'Inglés · palabras', text: 'Whisper. [pausa] Lighthouse. [pausa] Harbor. [pausa] Starry. [pausa] To drift off.' }],
   },

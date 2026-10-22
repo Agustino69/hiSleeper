@@ -33,23 +33,22 @@ Todo se guarda en el dispositivo (IndexedDB): grabaciones, objetivos, diario y a
 
 ## Voces IA
 
-En **Pistas → ✨ Voz IA** se escribe un guion y se genera una pista de audio (se guarda como WAV, así suena igual de noche, con fundidos y sin conexión):
+En **Pistas → ✨ Voz IA** se escribe un guion y se genera una pista de audio (se guarda como WAV: suena de noche con fundidos y sin conexión). Todo es gratis:
 
 | Motor | Calidad | Requisitos |
 |---|---|---|
-| **Neural en el teléfono** ([Piper](https://github.com/rhasspy/piper), VITS) | natural | descarga única: fonemizador ~19 MB + voz ~63–77 MB |
-| **Nube** (OpenAI `gpt-4o-mini-tts`) | la más expresiva, sigue indicaciones de actuación | clave propia de OpenAI (se guarda solo en el dispositivo) |
+| **Natural** — [Supertonic 3](https://huggingface.co/Supertone/supertonic-3) (Supertone, 31 idiomas, 10 voces) | natural, con `<breath>`, `<sigh>`, `<laugh>` | descarga única. **Android:** ONNX Runtime nativo con la versión [int8](https://huggingface.co/soniqo/Supertonic-3-ONNX-INT8) (~105 MB, ~2× más rápido que tiempo real en CPU de 4 hilos). **Navegador:** onnxruntime-web con la versión fp32 (~400 MB; el int8 es muy lento en WebAssembly) |
+| Natural clásica — [Piper](https://github.com/rhasspy/piper) | acentos de México/España | ~19 MB de fonemizador + 63–77 MB por voz |
+| **Actuada** — Google Gemini 3.8 Flash TTS | la más expresiva: indicaciones de actuación y etiquetas (`<whispers>`, `<sigh>`, `<yawn>`, `<laugh>`…) | clave gratuita de [Google AI Studio](https://aistudio.google.com/apikey) (nivel gratuito, con límites de uso) |
 | Básica del sistema | robótica | nada |
 
-Controles: **ritmo** (`length_scale`), **expresividad** (`noise_scale`), **naturalidad del ritmo** (`noise_w`), **tono** (remuestreo con la duración compensada), **pausas** entre frases, **espacio/eco** (convolución) y **calidez** (ecualización). En la nube, los controles se traducen a indicaciones de estilo.
+Controles: **ritmo**, **expresividad** (Supertonic: ruido inicial del modelo de flujo; Piper: `noise_scale`), **naturalidad del ritmo** (Piper: `noise_w`), **mezcla de timbre** entre dos voces y **calidad** (pasos de refinado) en Supertonic, **tono** (remuestreo con la duración compensada), **pausas** entre frases, **espacio/eco** (convolución) y **calidez** (ecualización). En la nube, los controles se traducen a indicaciones de actuación.
 
-El guion admite `...` (pausa larga), línea en blanco (pausa de párrafo) y `[pausa 3]` (3 s de silencio).
+El guion admite `...` (pausa larga), línea en blanco (pausa de párrafo), `[pausa 3]` (3 s de silencio) y etiquetas expresivas (cada motor ignora las que no entiende).
 
 **Estilos:** 🌙 Susurro para dormir · 🧘 Meditación guiada · 📖 Cuentacuentos · 🏴‍☠️ Capitán pirata · 🌌 Voz del cosmos · 🧚 Bosque encantado · 💪 Coach de confianza · 🎓 Profesor claro.
 
 **Plantillas** (en Objetivos → Nuevo): 🏴‍☠️ Soñar que soy pirata · 🕊️ Soñar que vuelo · 🚀 Viajar por el espacio · 🌊 Calma profunda · 💪 Confianza en mí · 🇬🇧 Vocabulario de inglés. Cada una crea el objetivo completo: guiones con su voz y estilo, señal sonora y ruido de fondo.
-
-La síntesis Piper corre en un Web Worker (`src/lib/tts/piper.worker.ts`) con onnxruntime-web; las voces se descargan de Hugging Face y se guardan en IndexedDB.
 
 ## Modo dormir (anti-doomscrolling)
 
@@ -113,6 +112,7 @@ El workflow `.github/workflows/pages.yml` la publica en GitHub Pages al hacer pu
 ## Créditos y licencias de terceros
 - [onnxruntime-web](https://github.com/microsoft/onnxruntime) (MIT), incluido en la app.
 - Voces de [Piper](https://github.com/rhasspy/piper) ([modelos](https://huggingface.co/rhasspy/piper-voices), cada uno con su licencia en su MODEL_CARD), descargadas en el dispositivo.
+- [Supertonic 3](https://huggingface.co/Supertone/supertonic-3) (modelo OpenRAIL-M; código de ejemplo MIT, del que se adaptan la normalización de texto y el pipeline), descargado en el dispositivo; versión int8 de [soniqo](https://huggingface.co/soniqo/Supertonic-3-ONNX-INT8) en Android. ONNX Runtime para Android (MIT).
 - Fonemizador [piper-phonemize](https://github.com/rhasspy/piper-phonemize) con [eSpeak NG](https://github.com/espeak-ng/espeak-ng) (GPL-3.0), compilado a wasm por [@diffusionstudio/piper-wasm](https://www.npmjs.com/package/@diffusionstudio/piper-wasm); no se distribuye con el código: el dispositivo lo descarga al activar las voces neuronales.
 
 ## Estructura
@@ -122,7 +122,7 @@ src/lib/night.ts         NightRunner: decide qué suena y cuándo
 src/lib/audio/engine.ts  motor Web Audio (ruido, pistas, TTS, keep-alive iOS)
 src/lib/audio/synth.ts   señales sonoras y ruidos generados en el dispositivo
 src/lib/device.ts        grabadora, Wake Lock, detector de movimiento
-src/lib/tts/              voces IA: Piper (worker), OpenAI, posproducción, estilos y plantillas
+src/lib/tts/              voces IA: Supertonic (worker web / plugin nativo), Piper, Gemini, posproducción, estilos y plantillas
 src/lib/focus.ts         configuración del modo dormir y detector de pasos (con tests)
 src/lib/focusBridge.ts   puente con el modo dormir nativo (estado, botón, retos)
 src/lib/native.ts        puente con Android (sesión nocturna nativa, voz del sistema)
