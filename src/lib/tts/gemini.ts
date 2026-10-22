@@ -69,13 +69,38 @@ export function toGeminiText(text: string): string {
     .trim();
 }
 
-export async function geminiSynth(text: string, spec: SynthSpec): Promise<AudioBuffer> {
+/** Llamada a la Interactions API de Gemini con la clave del usuario y errores en claro. */
+export async function geminiRequest(body: Record<string, unknown>, missingKeyMsg: string): Promise<unknown> {
   const key = await getGeminiKey();
-  if (!key) throw new Error('Añade tu clave gratuita de Google AI Studio para usar la voz en la nube');
-  const res = await fetch('https://generativelanguage.googleapis.com/v1beta/interactions', {
-    method: 'POST',
-    headers: { 'x-goog-api-key': key, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
+  if (!key) throw new Error(missingKeyMsg);
+  let res: Response;
+  try {
+    res = await fetch('https://generativelanguage.googleapis.com/v1beta/interactions', {
+      method: 'POST',
+      headers: { 'x-goog-api-key': key, 'Content-Type': 'application/json' },
+      // store: false → Google no guarda la conversación en el servidor.
+      body: JSON.stringify({ store: false, ...body }),
+    });
+  } catch {
+    throw new Error('Sin conexión con Google. Revisa tu internet.');
+  }
+  if (!res.ok) {
+    let msg = `${res.status}`;
+    try {
+      msg = (await res.json()).error?.message ?? msg;
+    } catch {
+      /* sin JSON */
+    }
+    if ((res.status === 400 || res.status === 403) && /api key|permission/i.test(msg)) throw new Error('Clave de Google AI Studio no válida');
+    if (res.status === 429) throw new Error('Llegaste al límite gratuito de Google por ahora. Prueba en un rato.');
+    throw new Error(`Google: ${msg}`);
+  }
+  return res.json();
+}
+
+export async function geminiSynth(text: string, spec: SynthSpec): Promise<AudioBuffer> {
+  const data = await geminiRequest(
+    {
       model: GEMINI_MODEL,
       input: [
         {
@@ -85,24 +110,24 @@ export async function geminiSynth(text: string, spec: SynthSpec): Promise<AudioB
       ],
       response_format: { type: 'audio' },
       generation_config: { speech_config: [{ voice: spec.voice }] },
-    }),
-  });
-  if (!res.ok) {
-    let msg = `${res.status}`;
-    try {
-      msg = (await res.json()).error?.message ?? msg;
-    } catch {
-      /* sin JSON */
-    }
-    if (res.status === 400 && /api key/i.test(msg)) throw new Error('Clave de Google AI Studio no válida');
-    if (res.status === 429) throw new Error('Llegaste al límite gratuito de Google por ahora. Prueba en un rato o usa la voz del teléfono.');
-    throw new Error(`Google: ${msg}`);
-  }
-  const data = await res.json();
+    },
+    'Añade tu clave gratuita de Google AI Studio para usar la voz en la nube',
+  );
   const audio = extractAudio(data);
   if (!audio) throw new Error('Google no devolvió audio');
   const bytes = Uint8Array.from(atob(audio.data), (c) => c.charCodeAt(0));
   return decodeAudio(bytes, audio.mimeType);
+}
+
+/** Texto de la respuesta (bloques de texto de los pasos model_output; se ignoran los «pensamientos»). */
+export function extractText(data: unknown): string {
+  const steps = (data as { steps?: Array<{ type?: string; content?: Array<{ type?: string; text?: string }> }> }).steps ?? [];
+  return steps
+    .filter((s) => s.type === 'model_output')
+    .flatMap((s) => s.content ?? [])
+    .filter((c) => c.type === 'text' && c.text)
+    .map((c) => c.text)
+    .join('');
 }
 
 /** Último bloque de audio de la respuesta (steps[].content[] con type "audio"). */

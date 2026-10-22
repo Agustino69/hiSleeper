@@ -3,7 +3,9 @@ import { engine } from '../lib/audio/engine';
 import { db, uid } from '../lib/db';
 import { volumeToGain } from '../lib/schedule';
 import { useStore } from '../lib/store';
-import { GEMINI_KEY_URL, GEMINI_VOICES, getGeminiKey, setGeminiKey } from '../lib/tts/gemini';
+import { GEMINI_VOICES } from '../lib/tts/gemini';
+import { GeminiKeyField, useGeminiKey } from './GeminiKey';
+import { AiScriptPanel } from './AiScriptPanel';
 import { PIPER_VOICES } from '../lib/tts/piper';
 import { specFromStyle, styleById, VOICE_STYLES } from '../lib/tts/presets';
 import { encodeWav, renderVoice } from '../lib/tts/render';
@@ -54,8 +56,9 @@ export function VoiceStudio({ track, onClose }: { track?: Track; onClose: () => 
   });
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState('');
-  const [hasKey, setHasKey] = useState(false);
-  const [keyDraft, setKeyDraft] = useState('');
+  const gemini = useGeminiKey();
+  const hasKey = !!gemini.hasKey;
+  const [aiOpen, setAiOpen] = useState(false);
   const [showFine, setShowFine] = useState(!!track);
   const preview = useRef<{ key: string; buf: AudioBuffer } | null>(null);
   const sheet = useRef<SheetHandle>(null);
@@ -65,7 +68,6 @@ export function VoiceStudio({ track, onClose }: { track?: Track; onClose: () => 
   const device = spec.engine === 'piper' ? piper : supertonic;
 
   useEffect(() => {
-    void getGeminiKey().then((k) => setHasKey(!!k));
     return () => engine.stopCues();
   }, []);
 
@@ -198,7 +200,12 @@ export function VoiceStudio({ track, onClose }: { track?: Track; onClose: () => 
       </label>
 
       <label className="field">
-        <span>Guion</span>
+        <span className="field-row">
+          <span>Guion</span>
+          <button className={`small ${aiOpen ? '' : 'ai-button'}`} type="button" onClick={() => setAiOpen(!aiOpen)}>
+            {aiOpen ? 'Cerrar IA' : '✨ Escribir con IA'}
+          </button>
+        </span>
         <textarea
           ref={textRef}
           rows={6}
@@ -207,6 +214,21 @@ export function VoiceStudio({ track, onClose }: { track?: Track; onClose: () => 
           placeholder="Esta noche eres el capitán de un barco pirata... Sientes el viento salado."
         />
       </label>
+      {aiOpen && (
+        <AiScriptPanel
+          engine={engineChoice === 'system' ? 'system' : spec.engine}
+          lang={spec.lang}
+          styleHint={styleById(spec.styleId)?.instructions}
+          gemini={gemini}
+          onScript={(title, script) => {
+            const previous = text;
+            setText(script);
+            if (!name.trim()) setName(title);
+            setAiOpen(false);
+            if (previous.trim()) toast('Guion reemplazado', { action: { label: 'Deshacer', run: () => setText(previous) } });
+          }}
+        />
+      )}
       <div className="chips tag-chips">
         <button className="chip" type="button" onClick={() => insert('[pausa 2]')}>
           ⏸ pausa
@@ -301,52 +323,7 @@ export function VoiceStudio({ track, onClose }: { track?: Track; onClose: () => 
                 ▶ Probar
               </button>
             </div>
-            {hasKey ? (
-              <small className="ok">
-                ✓ Clave guardada en este dispositivo ·{' '}
-                <button
-                  className="link"
-                  type="button"
-                  onClick={async () => {
-                    await setGeminiKey('');
-                    setHasKey(false);
-                  }}
-                >
-                  quitar
-                </button>
-              </small>
-            ) : (
-              <>
-                <small className="muted">
-                  Gratis con tu cuenta de Google: crea una clave en{' '}
-                  <a href={GEMINI_KEY_URL} target="_blank" rel="noreferrer">
-                    Google AI Studio
-                  </a>{' '}
-                  (sin tarjeta) y pégala aquí. El plan gratuito tiene un límite de usos por minuto y por día.
-                </small>
-                <div className="row">
-                  <input
-                    type="password"
-                    value={keyDraft}
-                    onChange={(e) => setKeyDraft(e.target.value)}
-                    placeholder="Clave de Google AI Studio"
-                    autoComplete="off"
-                  />
-                  <button
-                    className="primary"
-                    type="button"
-                    disabled={!keyDraft.trim()}
-                    onClick={async () => {
-                      await setGeminiKey(keyDraft);
-                      setKeyDraft('');
-                      setHasKey(true);
-                    }}
-                  >
-                    Guardar
-                  </button>
-                </div>
-              </>
-            )}
+            <GeminiKeyField hasKey={gemini.hasKey} onSave={gemini.save} />
             <label className="field">
               <span>Indicaciones de actuación</span>
               <textarea rows={3} value={spec.instructions ?? ''} onChange={(e) => set({ instructions: e.target.value })} />

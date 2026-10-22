@@ -96,8 +96,8 @@ export function TemplateSheet({ template, onClose }: { template: Template; onClo
         {template.cue && <li>Señal: {CUE_SOUNDS.find((c) => c.id === template.cue)?.label}</li>}
         {template.noise && <li>Fondo: {NOISE_TYPES.find((n) => n.id === template.noise)?.label}</li>}
       </ul>
-      <details>
-        <summary>Ver los guiones</summary>
+      <details open={template.id.startsWith('ai-')}>
+        <summary>{template.id.startsWith('ai-') ? 'Guiones escritos por la IA' : 'Ver los guiones'}</summary>
         {template.tracks.map((t) => (
           <div key={t.name} className="script">
             <b>{t.name}</b>

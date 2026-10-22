@@ -7,8 +7,8 @@ android {
         applicationId "com.agustino69.hisleeper"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 6
-        versionName "0.7.0"
+        versionCode 7
+        versionName "0.8.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         // Solo ARM de 64 bits (prácticamente todos los móviles actuales): el motor de voz
         // trae librerías nativas por arquitectura y cada una suma ~30 MB.

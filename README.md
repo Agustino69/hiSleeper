@@ -46,6 +46,11 @@ Controles: **ritmo**, **expresividad** (Supertonic: ruido inicial del modelo de 
 
 El guion admite `...` (pausa larga), línea en blanco (pausa de párrafo), `[pausa 3]` (3 s de silencio) y etiquetas expresivas (cada motor ignora las que no entiende).
 
+**✨ Escribir con IA** (Gemini 3.8 Flash, nivel gratuito, misma clave que la voz actuada):
+- En el Estudio de voz: describes la idea, eliges tipo (sueño, mantra, repaso o libre) y duración, y Gemini escribe el guion en presente y con detalles sensoriales, usando solo las marcas que entiende el motor de voz elegido. El texto se limpia (markdown, emojis, etiquetas no válidas) y se puede editar o deshacer.
+- En Objetivos → Nuevo → **Crear con IA**: a partir de una idea (o de tus apuntes, para repasar, sin inventar datos) crea el objetivo completo —guiones, intención o tarjetas, estilo de voz, señal y fondo— y lo abre en la hoja de plantillas para revisarlo antes de generar las voces.
+- Las peticiones usan `store: false` (Google no guarda la conversación). En el nivel gratuito, Google puede usar el contenido para mejorar sus productos.
+
 **Estilos:** 🌙 Susurro para dormir · 🧘 Meditación guiada · 📖 Cuentacuentos · 🏴‍☠️ Capitán pirata · 🌌 Voz del cosmos · 🧚 Bosque encantado · 💪 Coach de confianza · 🎓 Profesor claro.
 
 **Plantillas** (en Objetivos → Nuevo): 🏴‍☠️ Soñar que soy pirata · 🕊️ Soñar que vuelo · 🚀 Viajar por el espacio · 🌊 Calma profunda · 💪 Confianza en mí · 🇬🇧 Vocabulario de inglés. Cada una crea el objetivo completo: guiones con su voz y estilo, señal sonora y ruido de fondo.
@@ -122,6 +127,7 @@ src/lib/night.ts         NightRunner: decide qué suena y cuándo
 src/lib/audio/engine.ts  motor Web Audio (ruido, pistas, TTS, keep-alive iOS)
 src/lib/audio/synth.ts   señales sonoras y ruidos generados en el dispositivo
 src/lib/device.ts        grabadora, Wake Lock, detector de movimiento
+src/lib/ai/               guionista con Gemini (guiones y objetivos completos)
 src/lib/tts/              voces IA: Supertonic (worker web / plugin nativo), Piper, Gemini, posproducción, estilos y plantillas
 src/lib/focus.ts         configuración del modo dormir y detector de pasos (con tests)
 src/lib/focusBridge.ts   puente con el modo dormir nativo (estado, botón, retos)

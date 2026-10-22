@@ -11,6 +11,7 @@ import { Empty, Sheet, type SheetHandle } from '../components/ui';
 import { toast } from '../lib/toast';
 import { PrepareScreen } from './Prepare';
 import { TemplateSheet } from '../components/TemplateSheet';
+import { AiObjectiveSheet } from '../components/AiObjectiveSheet';
 import { TEMPLATES, type Template } from '../lib/tts/presets';
 
 const NOTES_LABEL: Record<Goal, { label: string; placeholder: string }> = {
@@ -31,6 +32,7 @@ export function ProgramsScreen() {
   const [preparing, setPreparing] = useState<Program | null>(null);
   const [picking, setPicking] = useState(false);
   const [template, setTemplate] = useState<Template | null>(null);
+  const [aiOpen, setAiOpen] = useState(false);
   const pickSheet = useRef<SheetHandle>(null);
   // Lo elegido en la hoja de selección se abre cuando esa hoja termina de salir.
   const afterPick = useRef<(() => void) | null>(null);
@@ -117,6 +119,13 @@ export function ProgramsScreen() {
             afterPick.current = null;
           }}
         >
+          <button className="card goal-option ai-option" onClick={() => pickThen(() => setAiOpen(true))}>
+            <span className="goal-icon">✨</span>
+            <span>
+              <b>Crear con IA</b>
+              <small>Describe tu sueño, tu mantra o pega tus apuntes: Gemini prepara el objetivo completo.</small>
+            </span>
+          </button>
           <h3>Plantillas listas</h3>
           <div className="template-grid">
             {TEMPLATES.map((t) => (
@@ -146,6 +155,7 @@ export function ProgramsScreen() {
         </Sheet>
       )}
       {template && <TemplateSheet template={template} onClose={() => setTemplate(null)} />}
+      {aiOpen && <AiObjectiveSheet onClose={() => setAiOpen(false)} onCreated={setTemplate} />}
       {editing && <ProgramEditor program={editing} onClose={() => setEditing(null)} />}
       {preparing && <PrepareScreen program={preparing} onClose={() => setPreparing(null)} />}
     </div>

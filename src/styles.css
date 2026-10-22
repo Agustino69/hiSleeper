@@ -1273,3 +1273,22 @@ details summary {
   margin: 0.4rem 0 0;
   font-variant-numeric: tabular-nums;
 }
+
+/* Guionista con IA */
+.ai-button {
+  background: linear-gradient(120deg, color-mix(in srgb, var(--accent) 30%, var(--surface-2)), var(--surface-2));
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+}
+.ai-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.8rem;
+  border-radius: var(--radius);
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line));
+  background: color-mix(in srgb, var(--accent) 7%, var(--surface));
+}
+.ai-option {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+}
