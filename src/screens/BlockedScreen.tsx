@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { StepDetector, type FocusConfig } from '../lib/focus';
-import { Focus, loadFocusConfig, unlockMorningNow, type BlockedEvent } from '../lib/focusBridge';
+import { StepDetector, type FocusConfig, type SleepState } from '../lib/focus';
+import { backToSleep, completeMorning, Focus, getSleepState, loadFocusConfig, type BlockedEvent } from '../lib/focusBridge';
 import { fmtClock } from '../lib/format';
 import { haptic } from '../lib/haptics';
 
@@ -103,11 +103,21 @@ function NightLock({ cfg, event, onClose, onStartNight }: { cfg: FocusConfig; ev
 
 function MorningLock({ cfg, event, onClose, onJournal }: { cfg: FocusConfig; event: BlockedEvent; onClose: () => void; onJournal: () => void }) {
   const [done, setDone] = useState(false);
+  const [state, setState] = useState<SleepState | null>(null);
+
+  useEffect(() => {
+    void getSleepState().then(setState);
+  }, []);
 
   async function unlock() {
-    await unlockMorningNow();
+    await completeMorning();
     haptic('success');
     setDone(true);
+  }
+
+  async function sleepMore() {
+    await backToSleep();
+    onClose();
   }
 
   return (
@@ -119,9 +129,12 @@ function MorningLock({ cfg, event, onClose, onJournal }: { cfg: FocusConfig; eve
           <p>Ya empezaste el día en movimiento. Buen comienzo.</p>
         ) : (
           <p>
-            {event.label ? `${event.label} se desbloquea` : 'Tus apps se desbloquean'} en cuanto salgas de la cama. Así el
-            día no empieza con scroll.
+            {event.label ? `${event.label} sigue en pausa` : 'Tus apps siguen en pausa'} hasta que salgas de la cama.
+            Dormir más no las desbloquea.
           </p>
+        )}
+        {!done && cfg.antiSnooze && (
+          <p className="muted small">⏰ Si dejas el móvil y vuelves a la cama, sonará una alarma en {cfg.snoozeMin} min.</p>
         )}
       </div>
       {done ? (
@@ -129,7 +142,7 @@ function MorningLock({ cfg, event, onClose, onJournal }: { cfg: FocusConfig; eve
           Cerrar
         </button>
       ) : cfg.challenge === 'steps' ? (
-        <StepsChallenge target={cfg.steps} onDone={() => void unlock()} />
+        <StepsChallenge target={cfg.steps} onDone={() => void unlock()} onFallback={onJournal} />
       ) : (
         <div className="stack">
           <p className="center">Escribe en el diario lo que recuerdes de tu sueño (al menos {cfg.journalChars} letras).</p>
@@ -139,15 +152,22 @@ function MorningLock({ cfg, event, onClose, onJournal }: { cfg: FocusConfig; eve
         </div>
       )}
       {!done && (
-        <button className="ghost small" onClick={onClose}>
-          Ahora no
-        </button>
+        <div className="stack">
+          {state?.canGoBackToSleep && (
+            <button className="ghost small" onClick={() => void sleepMore()}>
+              🌙 Aún es de madrugada: seguir durmiendo (solo una vez)
+            </button>
+          )}
+          <button className="ghost small" onClick={onClose}>
+            Ahora no
+          </button>
+        </div>
       )}
     </div>
   );
 }
 
-function StepsChallenge({ target, onDone }: { target: number; onDone: () => void }) {
+function StepsChallenge({ target, onDone, onFallback }: { target: number; onDone: () => void; onFallback: () => void }) {
   const [steps, setSteps] = useState(0);
   const [noSensor, setNoSensor] = useState(false);
   const doneRef = useRef(onDone);
@@ -193,7 +213,14 @@ function StepsChallenge({ target, onDone }: { target: number; onDone: () => void
         </text>
       </svg>
       <p>🚶 Camina con el móvil en la mano: al baño, a la cocina, a abrir la ventana.</p>
-      {noSensor && <small className="warn">No llegan datos del acelerómetro. Si persiste, el bloqueo se levanta solo al cumplirse el tope.</small>}
+      {noSensor && (
+        <small className="warn">
+          No llegan datos del acelerómetro.{' '}
+          <button className="link" onClick={onFallback}>
+            Anota tu sueño en su lugar
+          </button>
+        </small>
+      )}
     </div>
   );
 }

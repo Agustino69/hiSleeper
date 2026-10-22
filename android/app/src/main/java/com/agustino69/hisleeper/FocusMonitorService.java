@@ -14,11 +14,17 @@ import android.content.IntentFilter;
 import android.content.pm.ServiceInfo;
 import android.graphics.Color;
 import android.graphics.PixelFormat;
+import android.media.AudioAttributes;
+import android.media.MediaPlayer;
+import android.media.RingtoneManager;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
 import android.os.PowerManager;
+import android.os.VibrationEffect;
+import android.os.Vibrator;
 import android.provider.Settings;
 import android.util.TypedValue;
 import android.view.Gravity;
@@ -31,17 +37,21 @@ import androidx.core.app.NotificationCompat;
 import androidx.core.app.ServiceCompat;
 import java.text.DateFormat;
 import java.util.Date;
-import java.util.Set;
 
 /**
- * Durante una ventana de bloqueo comprueba qué app está en primer plano (acceso
- * de uso: solo el nombre del paquete) y, si está bloqueada, abre hiSleeper encima.
- * Solo consulta con la pantalla encendida y se detiene sola al acabar la ventana.
+ * Corre mientras el modo dormir está activo. Con la pantalla encendida mira qué
+ * app está delante (acceso de uso: solo el nombre del paquete) y pausa las elegidas.
+ * Detecta el despertar por uso (primer desbloqueo tras el sueño mínimo) y, si por la
+ * mañana la pantalla se queda apagada, hace sonar la alarma anti-sueño.
  */
 public class FocusMonitorService extends Service {
+    static final String ACTION_RING = "ring";
+    static final String ACTION_STOP_RING = "stopRing";
     private static final String CHANNEL = "focus_monitor";
     private static final int NOTIFICATION_ID = 7310;
     private static final long POLL_MS = 700;
+
+    private static FocusMonitorService instance;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private long lastQuery = 0;
@@ -50,12 +60,16 @@ public class FocusMonitorService extends Service {
     private long lastBlockedAt = 0;
     private View overlay = null;
     private boolean polling = false;
+    private MediaPlayer player = null;
+    private float ringVolume = 0.2f;
 
     private final BroadcastReceiver screen = new BroadcastReceiver() {
         @Override
         public void onReceive(Context c, Intent i) {
-            if (Intent.ACTION_SCREEN_OFF.equals(i.getAction())) stopPolling();
-            else startPolling();
+            String a = i.getAction();
+            if (Intent.ACTION_SCREEN_OFF.equals(a)) onScreenOff();
+            else if (Intent.ACTION_SCREEN_ON.equals(a)) startPolling();
+            else if (Intent.ACTION_USER_PRESENT.equals(a)) onUnlock();
         }
     };
 
@@ -68,40 +82,163 @@ public class FocusMonitorService extends Service {
         }
     };
 
+    private final Runnable rampUp = new Runnable() {
+        @Override
+        public void run() {
+            if (player == null) return;
+            ringVolume = Math.min(1f, ringVolume + 0.1f);
+            player.setVolume(ringVolume, ringVolume);
+            if (ringVolume < 1f) handler.postDelayed(this, 3000);
+        }
+    };
+
+    static void stopRingingIfRunning() {
+        if (instance != null) instance.stopRinging();
+    }
+
     @Override
     public void onCreate() {
         super.onCreate();
+        instance = this;
         if (Build.VERSION.SDK_INT >= 26) {
-            NotificationChannel ch = new NotificationChannel(CHANNEL, "Sin pantallas en la cama", NotificationManager.IMPORTANCE_MIN);
+            NotificationChannel ch = new NotificationChannel(CHANNEL, "Modo dormir", NotificationManager.IMPORTANCE_LOW);
             ch.setShowBadge(false);
+            ch.setSound(null, null);
             getSystemService(NotificationManager.class).createNotificationChannel(ch);
         }
         IntentFilter f = new IntentFilter(Intent.ACTION_SCREEN_OFF);
         f.addAction(Intent.ACTION_SCREEN_ON);
+        f.addAction(Intent.ACTION_USER_PRESENT);
         registerReceiver(screen, f);
     }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        FocusStore store = new FocusStore(this);
-        FocusLogic.Window w = FocusLogic.active(store.windows(), System.currentTimeMillis(), store.unlocked());
-        String until = w != null ? DateFormat.getTimeInstance(DateFormat.SHORT).format(new Date(w.end)) : "";
-        Intent open = new Intent(this, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
-        Notification n = new NotificationCompat.Builder(this, CHANNEL)
-            .setSmallIcon(R.drawable.ic_stat_moon)
-            .setContentTitle("Sin pantallas en la cama")
-            .setContentText(w != null ? "Apps en pausa hasta las " + until : "Apps en pausa")
-            .setContentIntent(PendingIntent.getActivity(this, 1, open, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT))
-            .setOngoing(true)
-            .setSilent(true)
-            .setPriority(NotificationCompat.PRIORITY_MIN)
-            .build();
+        FocusLogic.State s = FocusController.current(this);
         int type = Build.VERSION.SDK_INT >= 34 ? ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE : 0;
-        ServiceCompat.startForeground(this, NOTIFICATION_ID, n, type);
+        ServiceCompat.startForeground(this, NOTIFICATION_ID, notification(s), type);
+        if (s.phase == FocusLogic.Phase.IDLE) {
+            stopSelf();
+            return START_NOT_STICKY;
+        }
+        String action = intent != null ? intent.getAction() : null;
+        if (ACTION_RING.equals(action)) startRinging();
+        else if (ACTION_STOP_RING.equals(action)) stopRinging();
         PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
         if (pm.isInteractive()) startPolling();
         return START_STICKY;
     }
+
+    private Notification notification(FocusLogic.State s) {
+        DateFormat hm = DateFormat.getTimeInstance(DateFormat.SHORT);
+        String title;
+        String text;
+        switch (s.phase) {
+            case WIND_DOWN:
+                title = "Modo dormir en marcha";
+                text = "Tus apps se pausan a las " + hm.format(new Date(s.sleepAt)) + ". Ve preparándote.";
+                break;
+            case MORNING:
+                title = "¡Buenos días! Levántate";
+                FocusStore st = new FocusStore(this);
+                text = "journal".equals(st.challenge())
+                    ? "Anota tu sueño en el diario para desbloquear tus apps."
+                    : "Camina " + st.steps() + " pasos para desbloquear tus apps.";
+                break;
+            default:
+                title = "Modo dormir";
+                text = "Apps en pausa hasta que te levantes.";
+        }
+        Intent open = new Intent(this, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        NotificationCompat.Builder b = new NotificationCompat.Builder(this, CHANNEL)
+            .setSmallIcon(R.drawable.ic_stat_moon)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setContentIntent(PendingIntent.getActivity(this, 1, open, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT))
+            .setOngoing(true)
+            .setSilent(true)
+            .setPriority(NotificationCompat.PRIORITY_LOW);
+        if (s.phase == FocusLogic.Phase.WIND_DOWN || s.phase == FocusLogic.Phase.SLEEP) {
+            b.addAction(0, "Cancelar", FocusController.pending(this, FocusController.ACTION_CANCEL));
+        }
+        return b.build();
+    }
+
+    private void refreshNotification() {
+        NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+        nm.notify(NOTIFICATION_ID, notification(new FocusStore(this).state()));
+    }
+
+    // ── Pantalla y desbloqueo ──
+
+    private void onScreenOff() {
+        stopPolling();
+        FocusStore store = new FocusStore(this);
+        long now = System.currentTimeMillis();
+        store.setScreenOffAt(now);
+        FocusLogic.State s = FocusController.current(this);
+        long at = FocusLogic.ringAt(s, now, store.config());
+        // Por la mañana, si la pantalla sigue apagada (volviste a la cama), suena la alarma.
+        if (at > 0) FocusController.scheduleRing(this, at);
+    }
+
+    private void onUnlock() {
+        FocusStore store = new FocusStore(this);
+        long now = System.currentTimeMillis();
+        FocusLogic.State before = FocusController.current(this);
+        FocusLogic.State after = FocusLogic.onUnlock(before, now, store.config());
+        store.setState(after);
+        store.setScreenOffAt(0);
+        FocusController.cancelRing(this);
+        if (after.phase == FocusLogic.Phase.MORNING) {
+            refreshNotification();
+            // El despertar se detecta por uso: el primer desbloqueo tras dormir abre el reto.
+            openHiSleeper(null, null, "morning");
+        }
+        startPolling();
+    }
+
+    // ── Alarma anti-sueño ──
+
+    private void startRinging() {
+        if (player != null) return;
+        try {
+            Uri uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
+            if (uri == null) uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE);
+            player = new MediaPlayer();
+            player.setAudioAttributes(new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ALARM).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build());
+            player.setDataSource(this, uri);
+            player.setLooping(true);
+            ringVolume = 0.2f;
+            player.setVolume(ringVolume, ringVolume);
+            player.prepare();
+            player.start();
+            handler.postDelayed(rampUp, 3000);
+        } catch (Exception e) {
+            player = null;
+        }
+        Vibrator v = (Vibrator) getSystemService(VIBRATOR_SERVICE);
+        if (v != null) {
+            long[] pattern = { 0, 600, 600 };
+            if (Build.VERSION.SDK_INT >= 26) v.vibrate(VibrationEffect.createWaveform(pattern, 0));
+            else v.vibrate(pattern, 0);
+        }
+    }
+
+    void stopRinging() {
+        handler.removeCallbacks(rampUp);
+        if (player != null) {
+            try {
+                player.stop();
+            } catch (Exception ignored) {}
+            player.release();
+            player = null;
+        }
+        Vibrator v = (Vibrator) getSystemService(VIBRATOR_SERVICE);
+        if (v != null) v.cancel();
+    }
+
+    // ── Pausa de apps ──
 
     private void startPolling() {
         if (polling) return;
@@ -119,9 +256,8 @@ public class FocusMonitorService extends Service {
     private void check() {
         FocusStore store = new FocusStore(this);
         long now = System.currentTimeMillis();
-        if (!store.enabled() || FocusLogic.active(store.windows(), now, store.unlocked()) == null) {
-            // Fin de la ventana (o desbloqueo): nada más que hacer hasta la siguiente.
-            FocusScheduler.scheduleNext(this);
+        FocusLogic.State s = FocusController.current(this);
+        if (s.phase == FocusLogic.Phase.IDLE) {
             stopSelf();
             return;
         }
@@ -137,14 +273,12 @@ public class FocusMonitorService extends Service {
             removeOverlay();
             return;
         }
-        Set<String> exempt = FocusApps.exemptPackages(this);
-        boolean block = FocusLogic.shouldBlock(
+        boolean block = store.enabled() && FocusLogic.shouldBlock(
             foreground,
             store.packages(),
-            exempt,
-            store.windows(),
+            FocusApps.exemptPackages(this),
+            s,
             now,
-            store.unlocked(),
             store.allowedUntil(foreground)
         );
         if (!block) {
@@ -158,23 +292,23 @@ public class FocusMonitorService extends Service {
         }
         lastBlocked = foreground;
         lastBlockedAt = now;
-        FocusLogic.Window w = FocusLogic.active(store.windows(), now, store.unlocked());
-        String kind = w != null ? w.kind : "night";
+        String kind = FocusLogic.kind(s);
         String label = FocusApps.labelOf(this, foreground);
         store.logAttempt(foreground, label, kind, now);
-        try {
-            startActivity(blockedIntent(foreground, label, kind));
-        } catch (Exception ex) {
-            showOverlay(foreground);
-        }
+        if (!openHiSleeper(foreground, label, kind)) showOverlay(foreground);
     }
 
-    private Intent blockedIntent(String pkg, String label, String kind) {
-        return new Intent(this, MainActivity.class)
+    private boolean openHiSleeper(String pkg, String label, String kind) {
+        Intent i = new Intent(this, MainActivity.class)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
-            .putExtra(FocusPlugin.EXTRA_PACKAGE, pkg)
-            .putExtra(FocusPlugin.EXTRA_LABEL, label)
             .putExtra(FocusPlugin.EXTRA_KIND, kind);
+        if (pkg != null) i.putExtra(FocusPlugin.EXTRA_PACKAGE, pkg).putExtra(FocusPlugin.EXTRA_LABEL, label);
+        try {
+            startActivity(i);
+            return true;
+        } catch (Exception ex) {
+            return false;
+        }
     }
 
     /** Capa de respaldo por si el sistema no deja abrir hiSleeper encima. */
@@ -192,7 +326,7 @@ public class FocusMonitorService extends Service {
         moon.setTextSize(TypedValue.COMPLEX_UNIT_SP, 56);
         moon.setGravity(Gravity.CENTER);
         TextView msg = new TextView(this);
-        msg.setText(FocusApps.labelOf(this, pkg) + " está en pausa.\nEs hora de desconectar.");
+        msg.setText(FocusApps.labelOf(this, pkg) + " está en pausa.");
         msg.setTextColor(Color.rgb(231, 228, 242));
         msg.setTextSize(TypedValue.COMPLEX_UNIT_SP, 20);
         msg.setGravity(Gravity.CENTER);
@@ -201,7 +335,7 @@ public class FocusMonitorService extends Service {
         open.setText("Abrir hiSleeper");
         open.setOnClickListener(v -> {
             removeOverlay();
-            startActivity(blockedIntent(pkg, FocusApps.labelOf(this, pkg), "night"));
+            openHiSleeper(pkg, FocusApps.labelOf(this, pkg), FocusLogic.kind(new FocusStore(this).state()));
         });
         box.addView(moon);
         box.addView(msg);
@@ -233,7 +367,9 @@ public class FocusMonitorService extends Service {
 
     @Override
     public void onDestroy() {
+        instance = null;
         stopPolling();
+        stopRinging();
         removeOverlay();
         try {
             unregisterReceiver(screen);

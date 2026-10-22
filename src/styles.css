@@ -746,7 +746,7 @@ details summary {
   margin: 0.2rem 0 0;
 }
 
-/* Sin pantallas en la cama */
+/* Modo dormir */
 .time-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -1262,4 +1262,14 @@ details summary {
 }
 .perm-dot.opt {
   border-style: dashed;
+}
+
+.sleep-countdown {
+  font-size: 3.25rem;
+  font-weight: 250;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  text-align: center;
+  margin: 0.4rem 0 0;
+  font-variant-numeric: tabular-nums;
 }

@@ -2,15 +2,13 @@ package com.agustino69.hisleeper;
 
 import android.content.Context;
 import android.content.SharedPreferences;
-import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-/** Configuración del bloqueo y registro de intentos, compartidos por el plugin y el servicio. */
+/** Estado del modo dormir, configuración y registro de intentos (compartido por plugin, servicio y botón). */
 public class FocusStore {
     private static final String PREFS = "hisleeper_focus";
     private static final int MAX_ATTEMPTS = 500;
@@ -20,6 +18,8 @@ public class FocusStore {
         prefs = ctx.getApplicationContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
     }
 
+    // ── Configuración ──
+
     public boolean enabled() {
         return prefs.getBoolean("enabled", false);
     }
@@ -28,38 +28,90 @@ public class FocusStore {
         return new HashSet<>(prefs.getStringSet("packages", new HashSet<>()));
     }
 
-    public Set<String> unlocked() {
-        return new HashSet<>(prefs.getStringSet("unlocked", new HashSet<>()));
+    public int windDownMin() {
+        return prefs.getInt("windDownMin", 30);
     }
 
-    public void save(boolean enabled, Set<String> packages, JSONArray windows) {
-        prefs.edit().putBoolean("enabled", enabled).putStringSet("packages", packages).putString("windows", windows.toString()).apply();
+    public int steps() {
+        return prefs.getInt("steps", 40);
     }
 
-    public List<FocusLogic.Window> windows() {
-        List<FocusLogic.Window> out = new ArrayList<>();
+    public String challenge() {
+        return prefs.getString("challenge", "steps");
+    }
+
+    public FocusLogic.Config config() {
+        return new FocusLogic.Config(
+            prefs.getInt("minSleepMin", 300) * 60000L,
+            prefs.getInt("snoozeMin", 5) * 60000L,
+            prefs.getBoolean("antiSnooze", true)
+        );
+    }
+
+    public void saveConfig(
+        boolean enabled,
+        Set<String> packages,
+        int windDownMin,
+        int minSleepMin,
+        int snoozeMin,
+        boolean antiSnooze,
+        int steps,
+        String challenge
+    ) {
+        prefs
+            .edit()
+            .putBoolean("enabled", enabled)
+            .putStringSet("packages", packages)
+            .putInt("windDownMin", windDownMin)
+            .putInt("minSleepMin", minSleepMin)
+            .putInt("snoozeMin", snoozeMin)
+            .putBoolean("antiSnooze", antiSnooze)
+            .putInt("steps", steps)
+            .putString("challenge", challenge)
+            .apply();
+    }
+
+    // ── Estado ──
+
+    public FocusLogic.State state() {
+        FocusLogic.Phase phase;
         try {
-            JSONArray arr = new JSONArray(prefs.getString("windows", "[]"));
-            for (int i = 0; i < arr.length(); i++) {
-                JSONObject o = arr.getJSONObject(i);
-                out.add(new FocusLogic.Window(o.getString("id"), o.getString("kind"), o.getLong("start"), o.getLong("end")));
-            }
-        } catch (JSONException ignored) {
-            // Configuración corrupta: sin ventanas, sin bloqueo.
+            phase = FocusLogic.Phase.valueOf(prefs.getString("phase", "IDLE"));
+        } catch (IllegalArgumentException e) {
+            phase = FocusLogic.Phase.IDLE;
         }
-        return out;
+        return new FocusLogic.State(
+            phase,
+            prefs.getLong("startedAt", 0),
+            prefs.getLong("sleepAt", 0),
+            prefs.getLong("morningAt", 0),
+            prefs.getBoolean("usedBackToSleep", false)
+        );
     }
 
-    public void unlock(Set<String> ids) {
-        Set<String> u = unlocked();
-        u.addAll(ids);
-        // Solo se conservan los desbloqueos de ventanas que aún existen.
-        Set<String> live = new HashSet<>();
-        for (FocusLogic.Window w : windows()) live.add(w.id);
-        u.retainAll(live);
-        u.addAll(ids);
-        prefs.edit().putStringSet("unlocked", u).apply();
+    /** Guarda el estado; devuelve true si cambió de fase. */
+    public boolean setState(FocusLogic.State s) {
+        boolean changed = state().phase != s.phase;
+        prefs
+            .edit()
+            .putString("phase", s.phase.name())
+            .putLong("startedAt", s.startedAt)
+            .putLong("sleepAt", s.sleepAt)
+            .putLong("morningAt", s.morningAt)
+            .putBoolean("usedBackToSleep", s.usedBackToSleep)
+            .apply();
+        return changed;
     }
+
+    public long screenOffAt() {
+        return prefs.getLong("screenOffAt", 0);
+    }
+
+    public void setScreenOffAt(long t) {
+        prefs.edit().putLong("screenOffAt", t).apply();
+    }
+
+    // ── Permisos temporales (solo de noche) ──
 
     public long allowedUntil(String pkg) {
         try {
@@ -76,6 +128,8 @@ public class FocusStore {
             prefs.edit().putString("allow", o.toString()).apply();
         } catch (JSONException ignored) {}
     }
+
+    // ── Registro ──
 
     public void logAttempt(String pkg, String label, String kind, long at) {
         try {

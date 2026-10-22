@@ -1,34 +1,29 @@
 /**
- * «Sin pantallas en la cama»: bloqueo de apps a la hora de dormir y al despertar.
+ * Modo dormir basado en el uso del teléfono (sin horarios fijos):
  *
- * La app calcula aquí las ventanas de bloqueo (fechas concretas para los
- * próximos días) y se las pasa al servicio nativo de Android, que solo tiene que
- * comprobar si «ahora» cae dentro de alguna. Así toda la lógica de horarios vive
- * en un solo sitio y está cubierta por tests.
+ *   inactivo ──botón──▶ cuenta atrás ──▶ durmiendo ──primer desbloqueo tras el sueño mínimo──▶ mañana ──reto──▶ inactivo
+ *
+ * El estado vive en Android (funciona con la app cerrada: botón del panel rápido,
+ * alarmas y servicio). Aquí está la configuración y los textos para la interfaz.
  */
 
 export type FocusChallenge = 'steps' | 'journal';
 
 export interface FocusConfig {
   enabled: boolean;
-  /** Paquetes de Android bloqueados (com.instagram.android…). */
+  /** Paquetes de Android en pausa (com.instagram.android…). */
   packages: string[];
-  /** Hora de acostarse "HH:MM". */
-  bedtime: string;
-  /** El bloqueo empieza estos minutos antes de acostarse. */
+  /** Cuenta atrás al pulsar «Modo dormir» antes de pausar las apps. */
   windDownMin: number;
-  /** Hora de despertar "HH:MM". */
-  wakeTime: string;
-  /** Días (0 = domingo) en los que te despiertas con el bloqueo activo. */
-  days: number[];
-  /** Mantener el bloqueo al despertar hasta superar el reto. */
-  morningLock: boolean;
+  /** Desbloquear antes de este tiempo dormido no cuenta como despertar (ir al baño, mirar algo). */
+  minSleepMin: number;
   challenge: FocusChallenge;
   steps: number;
   journalChars: number;
-  /** Tope de seguridad: el bloqueo matutino nunca dura más de esto. */
-  morningMaxMin: number;
-  /** true = fricción (se puede abrir tras esperar); false = estricto. */
+  /** Alarma si por la mañana la pantalla se queda apagada (volviste a la cama). */
+  antiSnooze: boolean;
+  snoozeMin: number;
+  /** De noche: true = fricción (se puede abrir tras esperar); false = estricto. */
   allowOverride: boolean;
   overrideDelaySec: number;
   overrideMin: number;
@@ -37,77 +32,43 @@ export interface FocusConfig {
 export const DEFAULT_FOCUS: FocusConfig = {
   enabled: false,
   packages: [],
-  bedtime: '23:00',
   windDownMin: 30,
-  wakeTime: '07:00',
-  days: [0, 1, 2, 3, 4, 5, 6],
-  morningLock: true,
+  minSleepMin: 300,
   challenge: 'steps',
   steps: 40,
   journalChars: 60,
-  morningMaxMin: 60,
+  antiSnooze: true,
+  snoozeMin: 5,
   allowOverride: true,
   overrideDelaySec: 20,
   overrideMin: 5,
 };
 
+export type SleepPhase = 'idle' | 'wind_down' | 'sleep' | 'morning';
+
+export interface SleepState {
+  phase: SleepPhase;
+  startedAt: number;
+  /** Cuándo se pausan (o se pausaron) las apps. */
+  sleepAt: number;
+  morningAt: number;
+  canGoBackToSleep: boolean;
+}
+
+export const IDLE_STATE: SleepState = { phase: 'idle', startedAt: 0, sleepAt: 0, morningAt: 0, canGoBackToSleep: false };
+
 export type FocusKind = 'night' | 'morning';
 
-export interface FocusWindow {
-  id: string;
-  kind: FocusKind;
-  start: number;
-  end: number;
+/** «12:05» para una cuenta atrás. */
+export function countdown(ms: number): string {
+  const s = Math.max(0, Math.ceil(ms / 1000));
+  const m = Math.floor(s / 60);
+  return `${m}:${String(s % 60).padStart(2, '0')}`;
 }
 
-function parseHM(hm: string): [number, number] | null {
-  const m = /^(\d{1,2}):(\d{2})$/.exec(hm);
-  return m ? [Number(m[1]), Number(m[2])] : null;
-}
-
-function at(day: Date, hm: [number, number]): Date {
-  const d = new Date(day);
-  d.setHours(hm[0], hm[1], 0, 0);
-  return d;
-}
-
-const dayKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-
-/** Ventanas del horario para los próximos `horizonDays` días (en hora local, con cambios de horario). */
-export function scheduleWindows(cfg: FocusConfig, from: Date, horizonDays = 14): FocusWindow[] {
-  const wake = parseHM(cfg.wakeTime);
-  const bed = parseHM(cfg.bedtime);
-  if (!wake || !bed) return [];
-  const out: FocusWindow[] = [];
-  for (let d = -1; d <= horizonDays; d++) {
-    const day = new Date(from);
-    day.setDate(day.getDate() + d);
-    if (!cfg.days.includes(day.getDay())) continue;
-    const wakeAt = at(day, wake);
-    // Si la hora de dormir es posterior a la de despertar (lo habitual), fue la noche anterior.
-    const bedDay = new Date(day);
-    if (bed[0] * 60 + bed[1] >= wake[0] * 60 + wake[1]) bedDay.setDate(bedDay.getDate() - 1);
-    const nightStart = at(bedDay, bed).getTime() - cfg.windDownMin * 60000;
-    const key = dayKey(day);
-    out.push({ id: `night-${key}`, kind: 'night', start: nightStart, end: wakeAt.getTime() });
-    if (cfg.morningLock) {
-      out.push({ id: `morning-${key}`, kind: 'morning', start: wakeAt.getTime(), end: wakeAt.getTime() + cfg.morningMaxMin * 60000 });
-    }
-  }
-  return out.filter((w) => w.end > from.getTime() && w.end > w.start);
-}
-
-/** Ventanas de una sesión nocturna concreta (se suman a las del horario). */
-export function sessionWindows(cfg: FocusConfig, sessionId: string, start: number, end: number): FocusWindow[] {
-  const ws: FocusWindow[] = [{ id: `session-night-${sessionId}`, kind: 'night', start, end }];
-  if (cfg.morningLock) ws.push({ id: `session-morning-${sessionId}`, kind: 'morning', start: end, end: end + cfg.morningMaxMin * 60000 });
-  return ws;
-}
-
-/** Ventana activa ahora. La mañana tiene prioridad: es la que se desbloquea con el reto. */
-export function activeFocusWindow(windows: FocusWindow[], now: number, unlocked: string[] = []): FocusWindow | null {
-  const active = windows.filter((w) => now >= w.start && now < w.end && !unlocked.includes(w.id));
-  return active.find((w) => w.kind === 'morning') ?? active[0] ?? null;
+/** Hora a partir de la cual desbloquear cuenta como despertar. */
+export function wakeDetectionFrom(state: SleepState, cfg: FocusConfig): number {
+  return state.sleepAt + cfg.minSleepMin * 60000;
 }
 
 /**

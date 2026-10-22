@@ -3,7 +3,7 @@ import { engine } from '../lib/audio/engine';
 import { db } from '../lib/db';
 import { MotionMonitor, ScreenLock } from '../lib/device';
 import { isNative, startNativeSession, stopNativeSession } from '../lib/native';
-import { endFocusSession, startFocusSession } from '../lib/focusBridge';
+import { startSleep } from '../lib/focusBridge';
 import { fmtClock, fmtMinutes } from '../lib/format';
 import { NightRunner, type RunnerState } from '../lib/night';
 import { volumeToGain, WINDOW_LABELS, type Stage } from '../lib/schedule';
@@ -74,8 +74,8 @@ export function NightMode({ log, onExit }: { log: NightLog; onExit: (journalFor?
       );
       if (s.motionSensitivity > 0) motion.start(s.motionSensitivity, (i) => runner.onMotion(i, s.motionPauseMin));
       runner.start();
-      // Durante la sesión, las apps elegidas quedan bloqueadas.
-      void startFocusSession(log);
+      // Empezar la noche también activa el modo dormir (cuenta atrás y pausa de apps).
+      void startSleep();
     })();
 
     if ('mediaSession' in navigator) {
@@ -144,7 +144,6 @@ export function NightMode({ log, onExit }: { log: NightLog; onExit: (journalFor?
     }
     await db.nights.save(log);
     await db.activeNight.set(null);
-    await endFocusSession(log);
     await refresh();
     onExit(goJournal ? log.id : undefined);
   }

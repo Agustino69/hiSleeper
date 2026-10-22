@@ -1,7 +1,7 @@
 {
   "name": "hisleeper",
   "private": true,
-  "version": "0.5.0",
+  "version": "0.6.0",
   "type": "module",
   "description": "Reproduce pistas y audios de voz durante el sueño, sincronizados con el ciclo de sueño, para repasar, afirmar mantras e incubar sueños.",
   "scripts": {

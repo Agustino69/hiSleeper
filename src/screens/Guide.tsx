@@ -75,22 +75,25 @@ export function GuideScreen() {
       </section>
 
       <section className="card">
-        <h3>📵 Sin pantallas en la cama</h3>
+        <h3>😴 Modo dormir (anti-doomscrolling)</h3>
         <p>
-          El scroll antes de dormir retrasa el sueño (luz, estímulos y «solo un video más»), y empezar el día en el móvil
-          te deja en la cama. En «Noche → Sin pantallas en la cama» eliges qué apps bloquear y cuándo:
+          El scroll en la cama retrasa el sueño y, por la mañana, te deja en la cama. El modo dormir no depende de horarios
+          sino de cómo usas el teléfono:
         </p>
         <ul>
           <li>
-            <b>Noche:</b> desde un rato antes de acostarte hasta despertar, y siempre durante una sesión nocturna.
+            <b>Al acostarte</b> pulsa «Modo dormir» (en la app o en el panel rápido). Tras la cuenta atrás, las apps que
+            elegiste se pausan. Empezar una sesión nocturna también lo activa.
           </li>
           <li>
-            <b>Mañana:</b> siguen bloqueadas hasta que caminas unos pasos o anotas tu sueño (con un tope de seguridad).
+            <b>Al despertar</b>: el primer desbloqueo tras el sueño mínimo marca tu despertar. Las apps siguen en pausa
+            hasta que caminas unos pasos o anotas tu sueño. No hay tope de tiempo: dormir más no las desbloquea.
           </li>
           <li>
-            <b>Con fricción</b> puedes abrirlas igual tras una pausa para respirar; en <b>estricto</b>, no. Teléfono,
-            mensajes, reloj y ajustes nunca se bloquean.
+            <b>Sin volver a la cama</b>: si dejas el móvil con la pantalla apagada, suena una alarma que se repite hasta que
+            te levantas. Solo si es de madrugada puedes, una vez, seguir durmiendo.
           </li>
+          <li>Teléfono, mensajes, reloj y ajustes nunca se pausan.</li>
         </ul>
       </section>
 

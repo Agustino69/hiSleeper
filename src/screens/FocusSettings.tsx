@@ -5,15 +5,15 @@ import { SUGGESTED_PACKAGES, type FocusConfig } from '../lib/focus';
 import { Focus, focusSupported, isFocusConfigured, loadFocusConfig, saveFocusConfig, type Attempt, type FocusStatus, type InstalledApp } from '../lib/focusBridge';
 import { useStore } from '../lib/store';
 
-const DAYS = ['D', 'L', 'M', 'X', 'J', 'V', 'S'];
 
-/** Configuración de «Sin pantallas en la cama». */
+/** Configuración del modo dormir. */
 export function FocusSettings({ onClose }: { onClose: () => void }) {
   const { settings } = useStore();
   const [cfg, setCfg] = useState<FocusConfig | null>(null);
   const [service, setService] = useState<FocusStatus | null>(null);
   const [apps, setApps] = useState<InstalledApp[] | null>(null);
   const [query, setQuery] = useState('');
+  const [tileHint, setTileHint] = useState(false);
   const [attempts, setAttempts] = useState<Attempt[]>([]);
   const saveTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
@@ -24,7 +24,7 @@ export function FocusSettings({ onClose }: { onClose: () => void }) {
   }, []);
 
   useEffect(() => {
-    void loadFocusConfig().then((c) => setCfg(c.packages.length || c.enabled ? c : { ...c, wakeTime: settings.wakeTime || c.wakeTime }));
+    void loadFocusConfig().then(setCfg);
     refreshStatus();
     // Al volver de los ajustes de Android, comprueba si se activó el permiso.
     const onVis = () => document.visibilityState === 'visible' && refreshStatus();
@@ -76,11 +76,11 @@ export function FocusSettings({ onClose }: { onClose: () => void }) {
   const selectedFirst = [...filtered].sort((a, b) => Number(cfg.packages.includes(b.package)) - Number(cfg.packages.includes(a.package)));
 
   return (
-    <Sheet title="📵 Sin pantallas en la cama" onClose={onClose} size="full">
-
+    <Sheet title="😴 Modo dormir" onClose={onClose} size="full">
       <p className="muted">
-        Las apps que elijas se bloquean desde un rato antes de dormir y por la mañana hasta que te levantas. Romper el
-        hábito del scroll en la cama ayuda a dormirte antes y a no empezar el día en el móvil.
+        Al pulsar «Modo dormir» (aquí o en el panel rápido) empieza una cuenta atrás; después, las apps que elijas se
+        pausan. Por la mañana, el primer desbloqueo del teléfono marca tu despertar y las apps siguen en pausa hasta que
+        te levantas de verdad: dormir más no las desbloquea.
       </p>
 
       {!focusSupported ? (
@@ -126,89 +126,96 @@ export function FocusSettings({ onClose }: { onClose: () => void }) {
                 ok={false}
                 optional
                 title="Alarmas y recordatorios"
-                detail="Opcional: empezar el bloqueo al minuto exacto."
+                detail="Para que la cuenta atrás y la alarma de la mañana sean puntuales."
                 onFix={() => void Focus.openExactAlarmSettings()}
               />
+            )}
+            <button
+              className="small"
+              onClick={async () => {
+                const r = await Focus.requestAddTile().catch(() => ({ supported: false, added: false }));
+                setTileHint(!r.supported || !r.added);
+              }}
+            >
+              ＋ Añadir «Modo dormir» al panel rápido
+            </button>
+            {tileHint && (
+              <small className="muted">
+                Desliza el panel de notificaciones hacia abajo dos veces, toca ✎ (editar) y arrastra «Modo dormir» a tus
+                botones.
+              </small>
             )}
           </section>
 
           <section className="card">
-            <h3>2 · Horario</h3>
+            <h3>2 · Al acostarte</h3>
             <label className="field check">
               <input type="checkbox" checked={cfg.enabled} onChange={(e) => set({ enabled: e.target.checked })} disabled={!ready && !cfg.enabled} />
-              Bloqueo activado
+              Modo dormir activado
             </label>
-            <div className="time-row">
-              <label className="field">
-                <span>Me acuesto</span>
-                <input type="time" value={cfg.bedtime} onChange={(e) => set({ bedtime: e.target.value })} />
-              </label>
-              <label className="field">
-                <span>Me despierto</span>
-                <input type="time" value={cfg.wakeTime} onChange={(e) => set({ wakeTime: e.target.value })} />
-              </label>
-            </div>
             <Slider
-              label="Desconectar antes de acostarme"
+              label="Cuenta atrás"
               value={cfg.windDownMin}
               min={0}
-              max={120}
-              step={15}
+              max={90}
+              step={5}
               unit=" min"
               onChange={(v) => set({ windDownMin: v })}
-              hint="La luz y los estímulos del móvil retrasan el sueño; una hora sin pantallas es lo ideal."
+              hint="Tiempo entre pulsar el botón y que se pausen las apps: para lavarte los dientes, leer, apagar luces."
             />
-            <div className="chips" role="group" aria-label="Días">
-              {DAYS.map((d, i) => (
-                <button
-                  key={i}
-                  className={`chip day ${cfg.days.includes(i) ? 'on' : ''}`}
-                  onClick={() => set({ days: cfg.days.includes(i) ? cfg.days.filter((x) => x !== i) : [...cfg.days, i].sort() })}
-                >
-                  {d}
-                </button>
-              ))}
-            </div>
-            <small className="muted">Días en los que te despiertas con el bloqueo. La noche anterior también cuenta.</small>
-            <small className="muted">Además, mientras una sesión nocturna esté en marcha, las apps siempre se bloquean.</small>
+            <Slider
+              label="Sueño mínimo"
+              value={cfg.minSleepMin / 60}
+              min={2}
+              max={9}
+              step={0.5}
+              unit=" h"
+              onChange={(v) => set({ minSleepMin: Math.round(v * 60) })}
+              hint="Desbloquear antes no cuenta como despertar (ir al baño, mirar algo de madrugada): las apps siguen en pausa."
+            />
           </section>
 
           <section className="card">
             <h3>3 · Al despertar</h3>
-            <label className="field check">
-              <input type="checkbox" checked={cfg.morningLock} onChange={(e) => set({ morningLock: e.target.checked })} />
-              Mantener el bloqueo hasta levantarme
-            </label>
-            {cfg.morningLock && (
-              <>
-                <Segmented
-                  label="Reto para desbloquear"
-                  value={cfg.challenge}
-                  onChange={(v) => set({ challenge: v })}
-                  options={[
-                    { value: 'steps', label: '🚶 Caminar', hint: `${cfg.steps} pasos` },
-                    { value: 'journal', label: '✍️ Anotar mi sueño', hint: 'en el diario' },
-                  ]}
-                />
-                {cfg.challenge === 'steps' && (
-                  <Slider label="Pasos" value={cfg.steps} min={20} max={200} step={10} onChange={(v) => set({ steps: v })} hint="Camina con el móvil en la mano: hasta el baño o la cocina." />
-                )}
-                <Slider
-                  label="Se desbloquea solo tras"
-                  value={cfg.morningMaxMin}
-                  min={15}
-                  max={180}
-                  step={15}
-                  unit=" min"
-                  onChange={(v) => set({ morningMaxMin: v })}
-                  hint="Tope de seguridad por si no puedes hacer el reto."
-                />
-              </>
+            <p className="muted small">
+              El primer desbloqueo tras el sueño mínimo es tu despertar. Las apps siguen en pausa hasta superar el reto,
+              sin tope de tiempo.
+            </p>
+            <Segmented
+              label="Reto para desbloquear"
+              value={cfg.challenge}
+              onChange={(v) => set({ challenge: v })}
+              options={[
+                { value: 'steps', label: '🚶 Caminar', hint: `${cfg.steps} pasos` },
+                { value: 'journal', label: '✍️ Anotar mi sueño', hint: 'en el diario' },
+              ]}
+            />
+            {cfg.challenge === 'steps' && (
+              <Slider label="Pasos" value={cfg.steps} min={20} max={200} step={10} onChange={(v) => set({ steps: v })} hint="Camina con el móvil en la mano: hasta el baño o la cocina." />
             )}
+            <label className="field check">
+              <input type="checkbox" checked={cfg.antiSnooze} onChange={(e) => set({ antiSnooze: e.target.checked })} />
+              Alarma si vuelvo a la cama
+            </label>
+            {cfg.antiSnooze && (
+              <Slider
+                label="Suena tras la pantalla apagada"
+                value={cfg.snoozeMin}
+                min={2}
+                max={20}
+                unit=" min"
+                onChange={(v) => set({ snoozeMin: v })}
+                hint="Si después de despertar dejas el móvil sin completar el reto, suena una alarma que sube de volumen. Se repite hasta que te levantas."
+              />
+            )}
+            <small className="muted">
+              ¿Despertaste de madrugada? Una vez por noche, y solo en la hora y media siguiente al sueño mínimo, puedes
+              decir «aún es de noche» y seguir durmiendo.
+            </small>
           </section>
 
           <section className="card">
-            <h3>4 · Firmeza</h3>
+            <h3>4 · Firmeza de noche</h3>
             <Segmented
               label="Firmeza"
               value={cfg.allowOverride ? 'friction' : 'strict'}

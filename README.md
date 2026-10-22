@@ -51,21 +51,25 @@ El guion admite `...` (pausa larga), línea en blanco (pausa de párrafo) y `[pa
 
 La síntesis Piper corre en un Web Worker (`src/lib/tts/piper.worker.ts`) con onnxruntime-web; las voces se descargan de Hugging Face y se guardan en IndexedDB.
 
-## Sin pantallas en la cama (anti-doomscrolling)
+## Modo dormir (anti-doomscrolling)
 
-En la app de Android, **Noche → 📵 Sin pantallas en la cama** bloquea las apps elegidas (se preseleccionan Instagram, TikTok, YouTube, X, Reddit… si están instaladas):
+En la app de Android, basado en el **uso** del teléfono y no en horarios (`FocusLogic.java`, con tests JUnit):
 
-- **Noche**: desde `hora de acostarse − desconexión` hasta la hora de despertar, en los días elegidos, y siempre mientras haya una sesión nocturna en marcha.
-- **Mañana**: desde la hora de despertar, hasta superar un reto: **caminar N pasos** (acelerómetro) o **anotar el sueño** en el diario. Se desbloquea solo al cumplirse un tope de seguridad.
-- **Firmeza**: *con fricción* (se puede abrir tras una pausa para respirar, con permiso temporal de unos minutos) o *estricto*.
-- Teléfono, emergencias, SMS, reloj, ajustes y el escritorio **nunca** se bloquean.
-- Estadísticas de aperturas evitadas en los últimos 7 días.
+```
+inactivo ──botón──▶ cuenta atrás ──▶ durmiendo ──primer desbloqueo tras el sueño mínimo──▶ mañana ──reto──▶ inactivo
+```
 
-**Cómo funciona:** durante cada ventana de bloqueo, un servicio en primer plano (`FocusMonitorService`, con una notificación discreta) consulta con el *acceso de uso* qué app está delante (solo el nombre del paquete, y solo con la pantalla encendida). Si está bloqueada, abre hiSleeper encima gracias al permiso *mostrar sobre otras apps*; si el sistema no lo deja, cubre la app con una capa propia. Fuera de las ventanas no hay nada en marcha: una alarma (`FocusAlarmReceiver`, también tras reiniciar) arranca el servicio al empezar la siguiente. Las ventanas (fechas concretas de los próximos 14 días) se calculan en `src/lib/focus.ts` (con tests) y el servicio solo comprueba si «ahora» cae dentro de alguna (`FocusLogic.java`, con tests JUnit).
+- **Botón «Modo dormir»** en el panel de ajustes rápidos (`SleepTileService`) y en la app; empezar una sesión nocturna también lo activa. Tras la cuenta atrás (30 min por defecto), las apps elegidas se pausan (se preseleccionan Instagram, TikTok, YouTube, X, Reddit… si están instaladas).
+- **Madrugada**: desbloquear antes del sueño mínimo (5 h por defecto) no cuenta como despertar; las apps siguen en pausa. De noche hay *fricción* (abrir igual tras una pausa para respirar, con permiso de unos minutos) o modo *estricto*.
+- **Despertar por uso**: el primer desbloqueo tras el sueño mínimo abre el reto de la mañana: **caminar N pasos** (acelerómetro) o **anotar el sueño** en el diario. No hay tope de tiempo ni permisos temporales: dormir más no desbloquea nada.
+- **Anti volver a dormir**: por la mañana, si la pantalla se queda apagada unos minutos (5 por defecto), suena una alarma (`setAlarmClock`, volumen creciente y vibración) que se repite hasta superar el reto. Una sola vez por noche, y solo hasta 1 h 30 después del sueño mínimo, se puede decir «aún es de madrugada» y seguir durmiendo.
+- Teléfono, emergencias, SMS, reloj, ajustes y el escritorio **nunca** se pausan. Estadísticas de aperturas evitadas en 7 días.
 
-> **¿Por qué no un servicio de accesibilidad?** Es lo que usan muchas apps de bloqueo, pero Google Play Protect (protección mejorada contra fraude) impide instalar fuera de Play Store apps que lo declaren. El acceso de uso y mostrar sobre otras apps no están en esa lista.
+**Cómo funciona:** mientras el modo está activo, un servicio en primer plano (`FocusMonitorService`, con notificación) escucha el desbloqueo de pantalla y, solo con la pantalla encendida, consulta con el *acceso de uso* qué app está delante (únicamente el nombre del paquete). Si está en pausa, abre hiSleeper encima gracias a *mostrar sobre otras apps*, o la cubre con una capa propia si el sistema no lo permite. El estado vive en Android, así que funciona con la app cerrada y sobrevive a reinicios (`FocusAlarmReceiver`).
 
-**Activarlo:** la pantalla de configuración lleva a cada ajuste: *Acceso de uso* → hiSleeper, y *Mostrar sobre otras apps* → hiSleeper. Opcional en Android 12–13: *Alarmas y recordatorios*, para empezar el bloqueo al minuto exacto.
+> **¿Por qué no un servicio de accesibilidad?** Google Play Protect (protección mejorada contra fraude) impide instalar fuera de Play Store apps que lo declaren. El acceso de uso y mostrar sobre otras apps no están en esa lista.
+
+**Activarlo:** la configuración lleva a cada ajuste (*Acceso de uso* y *Mostrar sobre otras apps*) y ofrece añadir el botón al panel rápido (Android 13+; en versiones anteriores: panel → ✎ → arrastrar «Modo dormir»).
 
 ## App de Android (APK)
 
@@ -119,10 +123,10 @@ src/lib/audio/engine.ts  motor Web Audio (ruido, pistas, TTS, keep-alive iOS)
 src/lib/audio/synth.ts   señales sonoras y ruidos generados en el dispositivo
 src/lib/device.ts        grabadora, Wake Lock, detector de movimiento
 src/lib/tts/              voces IA: Piper (worker), OpenAI, posproducción, estilos y plantillas
-src/lib/focus.ts         ventanas de bloqueo y detector de pasos (puro, con tests)
-src/lib/focusBridge.ts   puente con el bloqueo nativo (configuración, sesiones, retos)
+src/lib/focus.ts         configuración del modo dormir y detector de pasos (con tests)
+src/lib/focusBridge.ts   puente con el modo dormir nativo (estado, botón, retos)
 src/lib/native.ts        puente con Android (sesión nocturna nativa, voz del sistema)
-android/                 proyecto Android de Capacitor (SleepSession; Focus: monitor de uso, alarmas y capa de bloqueo)
+android/                 proyecto Android de Capacitor (SleepSession; modo dormir: máquina de estados, monitor, alarmas, botón del panel)
 src/lib/db.ts            IndexedDB
 src/screens/             Noche, modo noche, Objetivos, Preparación, Pistas, Diario, Guía
 ```

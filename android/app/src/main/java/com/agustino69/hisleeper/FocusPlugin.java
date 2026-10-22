@@ -2,6 +2,8 @@ package com.agustino69.hisleeper;
 
 import android.app.AlarmManager;
 import android.app.AppOpsManager;
+import android.app.StatusBarManager;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
@@ -9,6 +11,7 @@ import android.content.pm.ResolveInfo;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.drawable.Drawable;
+import android.graphics.drawable.Icon;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Process;
@@ -157,35 +160,98 @@ public class FocusPlugin extends Plugin {
     public void setConfig(PluginCall call) {
         boolean enabled = Boolean.TRUE.equals(call.getBoolean("enabled", false));
         Set<String> pkgs = new HashSet<>();
-        JSArray packages = call.getArray("packages", new JSArray());
-        JSArray windows = call.getArray("windows", new JSArray());
         try {
+            JSArray packages = call.getArray("packages", new JSArray());
             for (int i = 0; i < packages.length(); i++) pkgs.add(packages.getString(i));
-            new FocusStore(getContext()).save(enabled, pkgs, new JSONArray(windows.toString()));
-            FocusScheduler.sync(getContext());
-            call.resolve();
         } catch (JSONException e) {
             call.reject("Configuración no válida: " + e.getMessage());
+            return;
         }
+        FocusStore store = new FocusStore(getContext());
+        store.saveConfig(
+            enabled,
+            pkgs,
+            call.getInt("windDownMin", 30),
+            call.getInt("minSleepMin", 300),
+            call.getInt("snoozeMin", 5),
+            Boolean.TRUE.equals(call.getBoolean("antiSnooze", true)),
+            call.getInt("steps", 40),
+            call.getString("challenge", "steps")
+        );
+        // Desactivarlo cancela el modo, salvo por la mañana (ahí solo vale el reto).
+        if (!enabled) FocusController.cancel(getContext());
+        else FocusController.changed(getContext());
+        call.resolve(stateJson());
     }
 
-    @PluginMethod
-    public void unlock(PluginCall call) {
-        Set<String> ids = new HashSet<>();
-        try {
-            JSArray arr = call.getArray("ids", new JSArray());
-            for (int i = 0; i < arr.length(); i++) ids.add(arr.getString(i));
-        } catch (JSONException ignored) {}
-        new FocusStore(getContext()).unlock(ids);
-        FocusScheduler.scheduleNext(getContext());
-        call.resolve();
-    }
-
-    @PluginMethod
-    public void getUnlocked(PluginCall call) {
+    private JSObject stateJson() {
+        FocusStore store = new FocusStore(getContext());
+        FocusLogic.State s = FocusController.current(getContext());
         JSObject r = new JSObject();
-        r.put("ids", new JSArray(new FocusStore(getContext()).unlocked()));
-        call.resolve(r);
+        r.put("phase", s.phase.name().toLowerCase());
+        r.put("startedAt", s.startedAt);
+        r.put("sleepAt", s.sleepAt);
+        r.put("morningAt", s.morningAt);
+        r.put("canGoBackToSleep", FocusLogic.canGoBackToSleep(s, System.currentTimeMillis(), store.config()));
+        return r;
+    }
+
+    @PluginMethod
+    public void getState(PluginCall call) {
+        call.resolve(stateJson());
+    }
+
+    @PluginMethod
+    public void startSleep(PluginCall call) {
+        FocusStore store = new FocusStore(getContext());
+        FocusController.start(getContext(), call.getInt("windDownMin", store.windDownMin()));
+        call.resolve(stateJson());
+    }
+
+    @PluginMethod
+    public void cancelSleep(PluginCall call) {
+        FocusController.cancel(getContext());
+        call.resolve(stateJson());
+    }
+
+    @PluginMethod
+    public void backToSleep(PluginCall call) {
+        FocusController.backToSleep(getContext());
+        call.resolve(stateJson());
+    }
+
+    @PluginMethod
+    public void completeMorning(PluginCall call) {
+        FocusController.completeMorning(getContext());
+        call.resolve(stateJson());
+    }
+
+    /** Android 13+: el sistema ofrece añadir el botón «Modo dormir» al panel rápido. */
+    @PluginMethod
+    public void requestAddTile(PluginCall call) {
+        if (Build.VERSION.SDK_INT < 33) {
+            JSObject r = new JSObject();
+            r.put("supported", false);
+            call.resolve(r);
+            return;
+        }
+        StatusBarManager sbm = getContext().getSystemService(StatusBarManager.class);
+        sbm.requestAddTileService(
+            new ComponentName(getContext(), SleepTileService.class),
+            "Modo dormir",
+            Icon.createWithResource(getContext(), R.drawable.ic_stat_moon),
+            getContext().getMainExecutor(),
+            result -> {
+                JSObject r = new JSObject();
+                r.put("supported", true);
+                r.put(
+                    "added",
+                    result == StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_ADDED ||
+                    result == StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_ALREADY_ADDED
+                );
+                call.resolve(r);
+            }
+        );
     }
 
     @PluginMethod
