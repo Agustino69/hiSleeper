@@ -1,6 +1,9 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { Focus, focusSupported, syncFocus, type BlockedEvent } from './lib/focusBridge';
 import { useStore } from './lib/store';
 import type { NightLog } from './lib/types';
+import { BlockedScreen } from './screens/BlockedScreen';
+import { ToastHost } from './components/ToastHost';
 import { GuideScreen } from './screens/Guide';
 import { JournalScreen } from './screens/Journal';
 import { NightMode } from './screens/NightMode';
@@ -19,16 +22,44 @@ const TABS: Array<{ id: Tab; icon: string; label: string }> = [
 ];
 
 export function App() {
-  const { ready } = useStore();
+  const { ready, nights } = useStore();
   const [tab, setTab] = useState<Tab>('tonight');
   const [night, setNight] = useState<NightLog | null>(null);
   const [journalFor, setJournalFor] = useState<string | undefined>();
+  const [blocked, setBlocked] = useState<BlockedEvent | null>(null);
   const clearJournalFor = useCallback(() => setJournalFor(undefined), []);
+
+  // Bloqueo de apps: renueva las ventanas al abrir la app y escucha los bloqueos.
+  useEffect(() => {
+    void syncFocus();
+    if (!focusSupported) return;
+    const sub = Focus.addListener('blocked', setBlocked);
+    return () => void sub.then((h) => h.remove());
+  }, []);
 
   if (!ready) return <div className="splash">hiSleeper</div>;
 
+  const overlay = blocked && (
+    <BlockedScreen
+      event={blocked}
+      onClose={() => setBlocked(null)}
+      onStartNight={() => {
+        setBlocked(null);
+        if (!night) setTab('tonight');
+      }}
+      onJournal={() => {
+        setBlocked(null);
+        setJournalFor(nights[0]?.id ?? 'sin-noche');
+        setTab('journal');
+      }}
+    />
+  );
+
   if (night) {
     return (
+      <>
+      {overlay}
+      <ToastHost />
       <NightMode
         log={night}
         onExit={(id) => {
@@ -39,13 +70,18 @@ export function App() {
           }
         }}
       />
+      </>
     );
   }
 
   return (
     <div className="app">
+      {overlay}
+      <ToastHost />
       <main>
-        {tab === 'tonight' && <TonightScreen onStart={setNight} onGoTo={setTab} />}
+        {tab === 'tonight' && (
+          <TonightScreen onStart={setNight} onGoTo={setTab} onMorningUnlock={() => setBlocked({ kind: 'morning', at: Date.now() })} />
+        )}
         {tab === 'programs' && <ProgramsScreen />}
         {tab === 'tracks' && <TracksScreen />}
         {tab === 'journal' && <JournalScreen forNight={journalFor} onConsumed={clearJournalFor} />}

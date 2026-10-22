@@ -1,0 +1,49 @@
+name: Compilar APK de Android
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-apk
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: android-actions/setup-android@v3
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - run: npx cap sync android
+      - name: Compilar APK
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hiSleeper-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+      # Publica el APK en una release fija para descargarlo directamente desde el móvil.
+      - name: Publicar en Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp android/app/build/outputs/apk/debug/app-debug.apk hiSleeper.apk
+          gh release delete apk-latest --yes --cleanup-tag || true
+          gh release create apk-latest hiSleeper.apk --prerelease \
+            --title "hiSleeper APK (última versión de main)" \
+            --notes "Compilado automáticamente desde ${GITHUB_SHA::7}. Descarga hiSleeper.apk en tu Android e instálalo."

@@ -1,20 +1,32 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { ScreenHeader } from '../components/ScreenHeader';
 import { engine } from '../lib/audio/engine';
 import { NOISE_TYPES } from '../lib/audio/synth';
 import { db, uid } from '../lib/db';
 import { MotionMonitor } from '../lib/device';
+import { isNative } from '../lib/native';
 import { fmtClock, fmtMinutes, GOAL_INFO, isToday } from '../lib/format';
 import { estimateHypnogram, minutesUntil, planWindows, suggestWakeTimes, volumeToGain } from '../lib/schedule';
 import { useStore } from '../lib/store';
+import { haptic } from '../lib/haptics';
 import type { NightLog, NightSettings, NoiseType } from '../lib/types';
 import { Hypnogram } from '../components/Hypnogram';
 import { Slider } from '../components/ui';
+import { FocusCard } from '../components/FocusCard';
 
 export function plannedMinutes(s: NightSettings, from: Date): number {
   return (s.wakeTime && minutesUntil(s.wakeTime, from)) || s.latencyMin + 5 * s.cycleMin;
 }
 
-export function TonightScreen({ onStart, onGoTo }: { onStart: (log: NightLog) => void; onGoTo: (tab: 'programs') => void }) {
+export function TonightScreen({
+  onStart,
+  onGoTo,
+  onMorningUnlock,
+}: {
+  onStart: (log: NightLog) => void;
+  onGoTo: (tab: 'programs') => void;
+  onMorningUnlock: () => void;
+}) {
   const { programs, settings, saveSettings } = useStore();
   const [now, setNow] = useState(() => new Date());
   const [noisePreview, setNoisePreview] = useState(false);
@@ -91,18 +103,18 @@ export function TonightScreen({ onStart, onGoTo }: { onStart: (log: NightLog) =>
       };
       await db.nights.save(log);
       await db.activeNight.set(log.id);
+      haptic('commit');
       onStart(log);
     });
   }
 
   return (
     <div className="screen">
-      <header className="screen-head">
-        <h1>Esta noche</h1>
+      <ScreenHeader title="Esta noche">
         <p className="muted">
           Son las {fmtClock(now)} · dormirás unas {fmtMinutes(total - settings.latencyMin)}
         </p>
-      </header>
+      </ScreenHeader>
 
       {resumable && (
         <div className="card banner">
@@ -155,6 +167,8 @@ export function TonightScreen({ onStart, onGoTo }: { onStart: (log: NightLog) =>
         )}
         {empty.length > 0 && <p className="warn">Sin señal ni pistas: {empty.map((p) => p.name).join(', ')}.</p>}
       </section>
+
+      <FocusCard onMorningUnlock={onMorningUnlock} />
 
       <section className="card">
         <h3>Despertar</h3>
@@ -284,8 +298,9 @@ export function TonightScreen({ onStart, onGoTo }: { onStart: (log: NightLog) =>
         🌙 Dormir
       </button>
       <p className="muted small center">
-        Pon el móvil a cargar, en modo avión o «no molestar», con la pantalla hacia abajo. La pantalla quedará en negro
-        pero encendida para que el navegador no detenga el audio.
+        {isNative
+          ? 'Pon el móvil a cargar, en «no molestar», con la pantalla hacia abajo. El audio sigue con la pantalla apagada (con el detector de movimiento activo, la pantalla queda en negro pero encendida).'
+          : 'Pon el móvil a cargar, en modo avión o «no molestar», con la pantalla hacia abajo. La pantalla quedará en negro pero encendida para que el navegador no detenga el audio.'}
       </p>
     </div>
   );

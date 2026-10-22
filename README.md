@@ -31,6 +31,64 @@ Todo se guarda en el dispositivo (IndexedDB): grabaciones, objetivos, diario y a
 - **Detector de movimiento** (acelerómetro, móvil sobre el colchón): pausa las pistas y baja el volumen el resto de la noche.
 - Pantalla negra con *Wake Lock* para que el navegador no detenga el audio; despertador suave opcional.
 
+## Voces IA
+
+En **Pistas → ✨ Voz IA** se escribe un guion y se genera una pista de audio (se guarda como WAV: suena de noche con fundidos y sin conexión). Todo es gratis:
+
+| Motor | Calidad | Requisitos |
+|---|---|---|
+| **Natural** — [Supertonic 3](https://huggingface.co/Supertone/supertonic-3) (Supertone, 31 idiomas, 10 voces) | natural, con `<breath>`, `<sigh>`, `<laugh>` | descarga única. **Android:** ONNX Runtime nativo con la versión [int8](https://huggingface.co/soniqo/Supertonic-3-ONNX-INT8) (~105 MB, ~2× más rápido que tiempo real en CPU de 4 hilos). **Navegador:** onnxruntime-web con la versión fp32 (~400 MB; el int8 es muy lento en WebAssembly) |
+| Natural clásica — [Piper](https://github.com/rhasspy/piper) | acentos de México/España | ~19 MB de fonemizador + 63–77 MB por voz |
+| **Actuada** — Google Gemini 3.8 Flash TTS | la más expresiva: indicaciones de actuación y etiquetas (`<whispers>`, `<sigh>`, `<yawn>`, `<laugh>`…) | clave gratuita de [Google AI Studio](https://aistudio.google.com/apikey) (nivel gratuito, con límites de uso) |
+| Básica del sistema | robótica | nada |
+
+Controles: **ritmo**, **expresividad** (Supertonic: ruido inicial del modelo de flujo; Piper: `noise_scale`), **naturalidad del ritmo** (Piper: `noise_w`), **mezcla de timbre** entre dos voces y **calidad** (pasos de refinado) en Supertonic, **tono** (remuestreo con la duración compensada), **pausas** entre frases, **espacio/eco** (convolución) y **calidez** (ecualización). En la nube, los controles se traducen a indicaciones de actuación.
+
+El guion admite `...` (pausa larga), línea en blanco (pausa de párrafo), `[pausa 3]` (3 s de silencio) y etiquetas expresivas (cada motor ignora las que no entiende).
+
+**Estilos:** 🌙 Susurro para dormir · 🧘 Meditación guiada · 📖 Cuentacuentos · 🏴‍☠️ Capitán pirata · 🌌 Voz del cosmos · 🧚 Bosque encantado · 💪 Coach de confianza · 🎓 Profesor claro.
+
+**Plantillas** (en Objetivos → Nuevo): 🏴‍☠️ Soñar que soy pirata · 🕊️ Soñar que vuelo · 🚀 Viajar por el espacio · 🌊 Calma profunda · 💪 Confianza en mí · 🇬🇧 Vocabulario de inglés. Cada una crea el objetivo completo: guiones con su voz y estilo, señal sonora y ruido de fondo.
+
+## Modo dormir (anti-doomscrolling)
+
+En la app de Android, basado en el **uso** del teléfono y no en horarios (`FocusLogic.java`, con tests JUnit):
+
+```
+inactivo ──botón──▶ cuenta atrás ──▶ durmiendo ──primer desbloqueo tras el sueño mínimo──▶ mañana ──reto──▶ inactivo
+```
+
+- **Botón «Modo dormir»** en el panel de ajustes rápidos (`SleepTileService`) y en la app; empezar una sesión nocturna también lo activa. Tras la cuenta atrás (30 min por defecto), las apps elegidas se pausan (se preseleccionan Instagram, TikTok, YouTube, X, Reddit… si están instaladas).
+- **Madrugada**: desbloquear antes del sueño mínimo (5 h por defecto) no cuenta como despertar; las apps siguen en pausa. De noche hay *fricción* (abrir igual tras una pausa para respirar, con permiso de unos minutos) o modo *estricto*.
+- **Despertar por uso**: el primer desbloqueo tras el sueño mínimo abre el reto de la mañana: **caminar N pasos** (acelerómetro) o **anotar el sueño** en el diario. No hay tope de tiempo ni permisos temporales: dormir más no desbloquea nada.
+- **Anti volver a dormir**: por la mañana, si la pantalla se queda apagada unos minutos (5 por defecto), suena una alarma (`setAlarmClock`, volumen creciente y vibración) que se repite hasta superar el reto. Una sola vez por noche, y solo hasta 1 h 30 después del sueño mínimo, se puede decir «aún es de madrugada» y seguir durmiendo.
+- Teléfono, emergencias, SMS, reloj, ajustes y el escritorio **nunca** se pausan. Estadísticas de aperturas evitadas en 7 días.
+
+**Cómo funciona:** mientras el modo está activo, un servicio en primer plano (`FocusMonitorService`, con notificación) escucha el desbloqueo de pantalla y, solo con la pantalla encendida, consulta con el *acceso de uso* qué app está delante (únicamente el nombre del paquete). Si está en pausa, abre hiSleeper encima gracias a *mostrar sobre otras apps*, o la cubre con una capa propia si el sistema no lo permite. El estado vive en Android, así que funciona con la app cerrada y sobrevive a reinicios (`FocusAlarmReceiver`).
+
+> **¿Por qué no un servicio de accesibilidad?** Google Play Protect (protección mejorada contra fraude) impide instalar fuera de Play Store apps que lo declaren. El acceso de uso y mostrar sobre otras apps no están en esa lista.
+
+**Activarlo:** la configuración lleva a cada ajuste (*Acceso de uso* y *Mostrar sobre otras apps*) y ofrece añadir el botón al panel rápido (Android 13+; en versiones anteriores: panel → ✎ → arrastrar «Modo dormir»).
+
+## App de Android (APK)
+
+Además de la versión web, hiSleeper se empaqueta como app nativa de Android con [Capacitor](https://capacitorjs.com). La app nativa añade:
+
+- **Audio con la pantalla apagada**: un servicio en primer plano (`SleepService`, tipo *mediaPlayback*) con *wake lock* parcial mantiene la app viva toda la noche. Se ve una notificación «sesión nocturna».
+- **Voz sintética del sistema** (plugin `@capacitor-community/text-to-speech`), porque el WebView de Android no trae la Web Speech API.
+- La pantalla solo se mantiene encendida si el detector de movimiento está activo (el acelerómetro solo llega con la pantalla encendida).
+
+**Instalar:** descarga `hiSleeper.apk` de la release [`apk-latest`](../../releases/tag/apk-latest) (la genera el workflow `android.yml` en cada push a `main`), ábrelo en el móvil y permite «instalar apps de origen desconocido».
+
+**Compilar en local** (requiere JDK 21 y el SDK de Android):
+
+```bash
+npm run build && npx cap sync android
+cd android && ./gradlew assembleDebug   # → app/build/outputs/apk/debug/app-debug.apk
+```
+
+El APK se firma con `android/app/debug.keystore` (llave de depuración con contraseña pública `android`), incluida a propósito para que cada versión se instale encima de la anterior sin perder datos. Para publicar en Google Play hace falta generar una llave privada.
+
 ## Desarrollo
 
 ```bash
@@ -48,8 +106,14 @@ El workflow `.github/workflows/pages.yml` la publica en GitHub Pages al hacer pu
 ## Limitaciones
 - Las fases son una **estimación**, no una medición (no hay EEG).
 - La voz sintética no pasa por el AudioContext: sin fundidos, y algunos móviles ignoran su volumen. Para la noche, mejor tu voz grabada.
-- En iPhone el navegador detiene el audio si se bloquea la pantalla: deja la app abierta (la pantalla queda negra).
+- En la versión web, el navegador detiene el audio si se bloquea la pantalla: deja la app abierta (la pantalla queda negra). La app de Android no tiene esta limitación.
 - No es un dispositivo médico.
+
+## Créditos y licencias de terceros
+- [onnxruntime-web](https://github.com/microsoft/onnxruntime) (MIT), incluido en la app.
+- Voces de [Piper](https://github.com/rhasspy/piper) ([modelos](https://huggingface.co/rhasspy/piper-voices), cada uno con su licencia en su MODEL_CARD), descargadas en el dispositivo.
+- [Supertonic 3](https://huggingface.co/Supertone/supertonic-3) (modelo OpenRAIL-M; código de ejemplo MIT, del que se adaptan la normalización de texto y el pipeline), descargado en el dispositivo; versión int8 de [soniqo](https://huggingface.co/soniqo/Supertonic-3-ONNX-INT8) en Android. ONNX Runtime para Android (MIT).
+- Fonemizador [piper-phonemize](https://github.com/rhasspy/piper-phonemize) con [eSpeak NG](https://github.com/espeak-ng/espeak-ng) (GPL-3.0), compilado a wasm por [@diffusionstudio/piper-wasm](https://www.npmjs.com/package/@diffusionstudio/piper-wasm); no se distribuye con el código: el dispositivo lo descarga al activar las voces neuronales.
 
 ## Estructura
 ```
@@ -58,6 +122,11 @@ src/lib/night.ts         NightRunner: decide qué suena y cuándo
 src/lib/audio/engine.ts  motor Web Audio (ruido, pistas, TTS, keep-alive iOS)
 src/lib/audio/synth.ts   señales sonoras y ruidos generados en el dispositivo
 src/lib/device.ts        grabadora, Wake Lock, detector de movimiento
+src/lib/tts/              voces IA: Supertonic (worker web / plugin nativo), Piper, Gemini, posproducción, estilos y plantillas
+src/lib/focus.ts         configuración del modo dormir y detector de pasos (con tests)
+src/lib/focusBridge.ts   puente con el modo dormir nativo (estado, botón, retos)
+src/lib/native.ts        puente con Android (sesión nocturna nativa, voz del sistema)
+android/                 proyecto Android de Capacitor (SleepSession; modo dormir: máquina de estados, monitor, alarmas, botón del panel)
 src/lib/db.ts            IndexedDB
 src/screens/             Noche, modo noche, Objetivos, Preparación, Pistas, Diario, Guía
 ```

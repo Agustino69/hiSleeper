@@ -12,7 +12,41 @@ export type CueSoundId =
 
 export type NoiseType = 'none' | 'pink' | 'brown' | 'ocean' | 'white';
 
-export type TrackKind = 'recording' | 'file' | 'tts';
+export type TrackKind = 'recording' | 'file' | 'tts' | 'voice';
+
+/** 'openai' solo existe en pistas antiguas: al editarlas se usa Gemini. */
+export type SynthEngine = 'supertonic' | 'piper' | 'gemini' | 'openai';
+
+/** Ajustes de una voz generada (neural en el dispositivo o en la nube). */
+export interface SynthSpec {
+  engine: SynthEngine;
+  /** Voz Supertonic ("st:F2"), Piper ("es_MX-claude-high#0") o Gemini ("Sulafat"). */
+  voice: string;
+  /** Supertonic: segunda voz para mezclar el timbre y proporción (0-100). */
+  mixWith?: string;
+  mix?: number;
+  /** Supertonic: pasos de refinado (más = más fino y más lento). */
+  quality?: number;
+  /** Idioma del guion (por defecto español). */
+  lang?: string;
+  styleId?: string;
+  /** Ritmo: 0.6 (muy lento) – 1.4 (rápido). */
+  speed: number;
+  /** 0-100: entonación plana → muy expresiva. */
+  expressiveness: number;
+  /** 0-100: ritmo regular → ritmo variado y natural. */
+  rhythm: number;
+  /** Semitonos: -6 (más grave) – +6 (más agudo). */
+  pitch: number;
+  /** Segundos de silencio entre frases. */
+  pause: number;
+  /** 0-100: seco → eco de catedral. */
+  reverb: number;
+  /** 0-100: voz brillante → cálida y suave. */
+  warmth: number;
+  /** Indicaciones de estilo para la voz en la nube. */
+  instructions?: string;
+}
 
 export interface Track {
   id: string;
@@ -25,6 +59,8 @@ export interface Track {
   text?: string;
   ttsRate?: number;
   ttsVoice?: string;
+  /** Pistas 'voice': cómo se generó (para poder editarla y regenerarla). */
+  synth?: SynthSpec;
   durationSec?: number;
   createdAt: number;
 }

@@ -1,10 +1,12 @@
+import { isNative } from '../lib/native';
+import { ScreenHeader } from '../components/ScreenHeader';
+
 export function GuideScreen() {
   return (
     <div className="screen guide">
-      <header className="screen-head">
-        <h1>Cómo funciona</h1>
+      <ScreenHeader title="Cómo funciona">
         <p className="muted">Lo que dice la investigación y cómo lo usa la app.</p>
-      </header>
+      </ScreenHeader>
 
       <section className="card">
         <h3>Lo honesto primero</h3>
@@ -53,6 +55,48 @@ export function GuideScreen() {
       </section>
 
       <section className="card">
+        <h3>✨ Voces IA</h3>
+        <p>
+          En «Pistas → Voz IA» escribes un guion y eliges un estilo (susurro, cuentacuentos, capitán pirata…). Cada
+          estilo ajusta voz, ritmo, expresividad, tono, pausas, eco y calidez; puedes afinarlos a mano.
+        </p>
+        <ul>
+          <li>
+            <b>Natural (en el teléfono):</b> 10 voces naturales que se descargan una vez y funcionan gratis y sin
+            conexión. Puedes mezclar dos voces para crear un timbre propio y añadir respiraciones, suspiros o risas.
+          </li>
+          <li>
+            <b>Actuada (nube, gratis):</b> la más expresiva; interpreta indicaciones como «voz ronca de viejo pirata» y
+            etiquetas como susurro o bostezo. Solo necesita una clave gratuita de Google AI Studio.
+          </li>
+          <li>Escribe en presente, frases cortas y con detalles de los sentidos. Usa «...» o pausas para dar aire.</li>
+        </ul>
+      </section>
+
+      <section className="card">
+        <h3>😴 Modo dormir (anti-doomscrolling)</h3>
+        <p>
+          El scroll en la cama retrasa el sueño y, por la mañana, te deja en la cama. El modo dormir no depende de horarios
+          sino de cómo usas el teléfono:
+        </p>
+        <ul>
+          <li>
+            <b>Al acostarte</b> pulsa «Modo dormir» (en la app o en el panel rápido). Tras la cuenta atrás, las apps que
+            elegiste se pausan. Empezar una sesión nocturna también lo activa.
+          </li>
+          <li>
+            <b>Al despertar</b>: el primer desbloqueo tras el sueño mínimo marca tu despertar. Las apps siguen en pausa
+            hasta que caminas unos pasos o anotas tu sueño. No hay tope de tiempo: dormir más no las desbloquea.
+          </li>
+          <li>
+            <b>Sin volver a la cama</b>: si dejas el móvil con la pantalla apagada, suena una alarma que se repite hasta que
+            te levantas. Solo si es de madrugada puedes, una vez, seguir durmiendo.
+          </li>
+          <li>Teléfono, mensajes, reloj y ajustes nunca se pausan.</li>
+        </ul>
+      </section>
+
+      <section className="card">
         <h3>Reglas para que funcione (y no arruine tu sueño)</h3>
         <ul>
           <li>
@@ -81,12 +125,24 @@ export function GuideScreen() {
 
       <section className="card">
         <h3>En el móvil</h3>
-        <ul>
-          <li>Instala la app («Añadir a pantalla de inicio») para usarla sin conexión.</li>
-          <li>Conecta el cargador: la pantalla queda negra pero encendida toda la noche.</li>
-          <li>Activa «No molestar» y el modo avión; las notificaciones fragmentan el sueño.</li>
-          <li>En iPhone, desactiva el bloqueo automático o deja la app en primer plano.</li>
-        </ul>
+        {isNative ? (
+          <ul>
+            <li>El audio sigue sonando con la pantalla apagada (verás una notificación de «sesión nocturna»).</li>
+            <li>El detector de movimiento necesita la pantalla encendida: si lo usas, queda en negro toda la noche.</li>
+            <li>Conecta el cargador y activa «No molestar»; las notificaciones fragmentan el sueño.</li>
+            <li>
+              Si el audio se corta de madrugada, quita a hiSleeper de la optimización de batería (Ajustes → Apps →
+              hiSleeper → Batería → Sin restricciones).
+            </li>
+          </ul>
+        ) : (
+          <ul>
+            <li>Instala la app («Añadir a pantalla de inicio») para usarla sin conexión.</li>
+            <li>Conecta el cargador: la pantalla queda negra pero encendida toda la noche.</li>
+            <li>Activa «No molestar» y el modo avión; las notificaciones fragmentan el sueño.</li>
+            <li>En iPhone, desactiva el bloqueo automático o deja la app en primer plano.</li>
+          </ul>
+        )}
         <p className="muted small">
           Todo (grabaciones, diario, ajustes) se guarda solo en este dispositivo. hiSleeper no es un dispositivo médico:
           si tienes insomnio o apnea, consulta a un especialista.

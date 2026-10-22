@@ -3,6 +3,8 @@ import { engine } from '../lib/audio/engine';
 import { db } from '../lib/db';
 import { volumeToGain } from '../lib/schedule';
 import { useStore } from '../lib/store';
+import { Sheet, type SheetHandle } from '../components/ui';
+import { haptic } from '../lib/haptics';
 import type { Program, Track } from '../lib/types';
 
 const AWAKE_GAIN = volumeToGain(72);
@@ -22,26 +24,23 @@ export function PrepareScreen({ program, onClose }: { program: Program; onClose:
 
   useEffect(() => () => engine.stopCues(), []);
 
+  const sheet = useRef<SheetHandle>(null);
+
   async function finish() {
     await db.programs.save({ ...program, lastPreparedAt: Date.now() });
     await refresh();
+    haptic('success');
     setDone(true);
   }
 
   return (
-    <div className="fullscreen prepare">
-      <header className="row">
-        <h2 className="grow">{program.name}</h2>
-        <button className="ghost icon" onClick={onClose} aria-label="Cerrar">
-          ✕
-        </button>
-      </header>
+    <Sheet title={program.name} onClose={onClose} size="full" ref={sheet}>
       {done ? (
         <div className="center-col">
           <p className="big">✓</p>
           <p>Listo. Esta noche la señal reactivará lo que acabas de {program.goal === 'review' ? 'estudiar' : 'imaginar'}.</p>
           <p className="muted">Ve a dormir pronto: funciona mejor si duermes en las horas siguientes.</p>
-          <button className="primary" onClick={onClose}>
+          <button className="primary" onClick={() => sheet.current?.dismiss()}>
             Cerrar
           </button>
         </div>
@@ -50,7 +49,7 @@ export function PrepareScreen({ program, onClose }: { program: Program; onClose:
       ) : (
         <Visualize program={program} tracks={myTracks} onFinish={finish} />
       )}
-    </div>
+    </Sheet>
   );
 }
 

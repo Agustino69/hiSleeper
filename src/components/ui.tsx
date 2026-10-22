@@ -1,5 +1,8 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { VoiceRecorder } from '../lib/device';
+
+/** Porcentaje relleno de un slider (la pista se colorea hasta el pulgar). */
+export const rangeFill = (v: number, min: number, max: number) => ({ '--fill': `${((v - min) / (max - min || 1)) * 100}%` }) as CSSProperties;
 
 export function Slider(props: {
   label: string;
@@ -23,7 +26,15 @@ export function Slider(props: {
         </b>
       </span>
       <span className="field-row">
-        <input type="range" min={min} max={max} step={step} value={value} onChange={(e) => onChange(Number(e.target.value))} />
+        <input
+          type="range"
+          min={min}
+          max={max}
+          step={step}
+          value={value}
+          style={rangeFill(value, min, max)}
+          onChange={(e) => onChange(Number(e.target.value))}
+        />
         {action}
       </span>
       {hint && <small>{hint}</small>}
@@ -31,26 +42,8 @@ export function Slider(props: {
   );
 }
 
-export function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
-  return (
-    <div className="sheet-backdrop" onClick={onClose}>
-      <section className="sheet" role="dialog" aria-label={title} onClick={(e) => e.stopPropagation()}>
-        <header className="sheet-head">
-          <h2>{title}</h2>
-          <button className="ghost icon" onClick={onClose} aria-label="Cerrar">
-            ✕
-          </button>
-        </header>
-        {children}
-      </section>
-    </div>
-  );
-}
+export { Sheet } from './Sheet';
+export type { SheetHandle } from './Sheet';
 
 /** Botón de grabar/detener con contador. */
 export function RecordButton({ onDone, label = 'Grabar' }: { onDone: (blob: Blob, sec: number) => void; label?: string }) {

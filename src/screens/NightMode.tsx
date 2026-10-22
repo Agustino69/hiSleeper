@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { engine } from '../lib/audio/engine';
 import { db } from '../lib/db';
 import { MotionMonitor, ScreenLock } from '../lib/device';
+import { isNative, startNativeSession, stopNativeSession } from '../lib/native';
+import { startSleep } from '../lib/focusBridge';
 import { fmtClock, fmtMinutes } from '../lib/format';
 import { NightRunner, type RunnerState } from '../lib/night';
 import { volumeToGain, WINDOW_LABELS, type Stage } from '../lib/schedule';
@@ -60,7 +62,11 @@ export function NightMode({ log, onExit }: { log: NightLog; onExit: (journalFor?
     runnerRef.current = runner;
 
     void (async () => {
-      await lock.enable();
+      // En Android, un servicio nativo mantiene el audio con la pantalla apagada;
+      // solo se deja encendida si el detector de movimiento la necesita.
+      const keepScreenOn = s.motionSensitivity > 0;
+      const native = await startNativeSession(`${tonight.map((p) => p.name).join(' · ') || 'Ruido de fondo'}`, keepScreenOn);
+      if (!native) await lock.enable();
       await engine.setNoise(s.noise, volumeToGain(s.noiseVolume), 20);
       await engine.preload(
         tonight.flatMap((p) => (p.cue ? [p.cue] : [])),
@@ -68,6 +74,8 @@ export function NightMode({ log, onExit }: { log: NightLog; onExit: (journalFor?
       );
       if (s.motionSensitivity > 0) motion.start(s.motionSensitivity, (i) => runner.onMotion(i, s.motionPauseMin));
       runner.start();
+      // Empezar la noche también activa el modo dormir (cuenta atrás y pausa de apps).
+      void startSleep();
     })();
 
     if ('mediaSession' in navigator) {
@@ -78,6 +86,7 @@ export function NightMode({ log, onExit }: { log: NightLog; onExit: (journalFor?
       runner.stop();
       motion.stop();
       void lock.disable();
+      void stopNativeSession();
       clearTimeout(saveTimer);
       void db.nights.save(log);
     };
@@ -201,7 +210,11 @@ export function NightMode({ log, onExit }: { log: NightLog; onExit: (journalFor?
                 </button>
               )}
             </div>
-            <p className="muted small">La pantalla se oscurece en unos segundos. Toca para ver esto de nuevo.</p>
+            <p className="muted small">
+              {isNative && log.settings.motionSensitivity === 0
+                ? 'Puedes apagar la pantalla: el audio sigue sonando. Toca para ver esto de nuevo.'
+                : 'La pantalla se oscurece en unos segundos. Toca para ver esto de nuevo.'}
+            </p>
           </div>
         )
       )}
