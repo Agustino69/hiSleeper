@@ -26,10 +26,25 @@ Todo se guarda en el dispositivo (IndexedDB): grabaciones, objetivos, diario y a
 
 ### Para no romper el sueño
 - Volumen logarítmico con rampas de entrada y salida, compresor y paso bajo en el bus de voz, normalización de sonoridad de cada pista.
-- Ruido de fondo (rosa, marrón, oleaje, blanco) en bucle sin cortes, que enmascara las pistas.
+- **Fondos sonoros generativos**, que enmascaran la casa y las pistas: lluvia, oleaje, viento, fogata, noche de grillos, música ambiental y ruido rosa, marrón o blanco. Ninguno es una grabación en bucle: se sintetizan muestra a muestra en tiempo real, así que nunca se repiten (ver abajo).
 - Intervalos con variación aleatoria (evita la habituación).
 - **Detector de movimiento** (acelerómetro, móvil sobre el colchón): pausa las pistas y baja el volumen el resto de la noche.
 - Pantalla negra con *Wake Lock* para que el navegador no detenga el audio; despertador suave opcional.
+
+### Fondos generativos
+Cada fondo es un pequeño modelo físico que corre en un **AudioWorklet** (el hilo de audio del navegador o del WebView de Android), así que sigue sonando con la pantalla apagada y no se corta aunque la app esté ocupada. Usa unos 1–2 % de una CPU. Las técnicas son las de la síntesis procedural de sonido (A. Farnell, *Designing Sound*, MIT Press), sin muestras grabadas:
+
+| Fondo | Cómo se genera |
+|---|---|
+| Lluvia | lecho de ruido rosa en banda con centro que deriva + gotas (proceso de Poisson: chirrido senoidal o ráfaga de ruido, paneo aleatorio); la intensidad pasa de llovizna a moderada en minutos |
+| Oleaje | dos trenes de olas independientes (6–12 s, altura y pausa aleatorias); el filtro se abre con cada ola y la cresta añade espuma |
+| Viento | ruido rosa por dos filtros de banda cuyo centro, resonancia y ráfaga derivan con transiciones suaves |
+| Fogata | rugido grave + chasquidos en ráfagas (la madera estalla en series cortas) |
+| Noche de grillos | cinco grillos con su propio tono (3,9–5,2 kHz), ritmo y silencios, y brisa suave |
+| Música ambiental | cinco voces en pentatónica de re (nada disuena) con ataques y finales lentos, coro y eco estéreo; nunca repite la misma secuencia |
+| Rosa, marrón, blanco | ruido de color con tono y nivel que «respiran» muy despacio |
+
+Las variaciones lentas usan **derivas aleatorias** (van a un objetivo al azar con una curva suave), no osciladores periódicos: no hay patrón que el oído pueda aprender. El cambio de fondo es un fundido de potencia constante y la salida pasa por un limitador suave. El volumen de cada fondo está calibrado (RMS) en `tests/soundscape.test.ts`.
 
 ## Voces IA
 
@@ -53,7 +68,7 @@ El guion admite `...` (pausa larga), línea en blanco (pausa de párrafo), `[pau
 
 **Estilos:** 🌙 Susurro para dormir · 🧘 Meditación guiada · 📖 Cuentacuentos · 🏴‍☠️ Capitán pirata · 🌌 Voz del cosmos · 🧚 Bosque encantado · 💪 Coach de confianza · 🎓 Profesor claro.
 
-**Plantillas** (en Objetivos → Nuevo): 🏴‍☠️ Soñar que soy pirata · 🕊️ Soñar que vuelo · 🚀 Viajar por el espacio · 🌊 Calma profunda · 💪 Confianza en mí · 🇬🇧 Vocabulario de inglés. Cada una crea el objetivo completo: guiones con su voz y estilo, señal sonora y ruido de fondo.
+**Plantillas** (en Objetivos → Nuevo): 🏴‍☠️ Soñar que soy pirata · 🕊️ Soñar que vuelo · 🚀 Viajar por el espacio · 🌊 Calma profunda · 💪 Confianza en mí · 🇬🇧 Vocabulario de inglés. Cada una crea el objetivo completo: guiones con su voz y estilo, señal sonora y fondo sonoro.
 
 ## Modo dormir (anti-doomscrolling)
 
@@ -124,8 +139,9 @@ El workflow `.github/workflows/pages.yml` la publica en GitHub Pages al hacer pu
 ```
 src/lib/schedule.ts      modelo de ciclos, ventanas y envolventes (puro, con tests)
 src/lib/night.ts         NightRunner: decide qué suena y cuándo
-src/lib/audio/engine.ts  motor Web Audio (ruido, pistas, TTS, keep-alive iOS)
-src/lib/audio/synth.ts   señales sonoras y ruidos generados en el dispositivo
+src/lib/audio/engine.ts  motor Web Audio (fondo generativo, pistas, TTS, keep-alive iOS)
+src/lib/audio/synth.ts   señales sonoras generadas en el dispositivo
+src/lib/audio/soundscape/ fondos generativos: DSP puro (con tests) y su AudioWorklet
 src/lib/device.ts        grabadora, Wake Lock, detector de movimiento
 src/lib/ai/               guionista con Gemini (guiones y objetivos completos)
 src/lib/tts/              voces IA: Supertonic (worker web / plugin nativo), Piper, Gemini, posproducción, estilos y plantillas

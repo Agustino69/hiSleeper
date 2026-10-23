@@ -208,7 +208,18 @@ export function TonightScreen({
         <h3>Sonido</h3>
         <label className="field">
           <span>Fondo</span>
-          <select value={settings.noise} onChange={(e) => set({ noise: e.target.value as NoiseType })}>
+          <select
+            value={settings.noise}
+            onChange={(e) => {
+              const noise = e.target.value as NoiseType;
+              set({ noise });
+              // Con la vista previa sonando, cambia de paisaje al momento (fundido suave).
+              if (noisePreview) {
+                void engine.setNoise(noise, volumeToGain(settings.noiseVolume), noise === 'none' ? 0.5 : 1);
+                if (noise === 'none') setNoisePreview(false);
+              }
+            }}
+          >
             {NOISE_TYPES.map((n) => (
               <option key={n.id} value={n.id}>
                 {n.label}

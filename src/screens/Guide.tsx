@@ -104,7 +104,9 @@ export function GuideScreen() {
             con el fondo sonando: apenas audible.
           </li>
           <li>
-            <b>Ruido de fondo.</b> El ruido rosa enmascara la casa y suaviza la entrada de cada pista.
+            <b>Fondo sonoro.</b> Lluvia, olas o ruido rosa enmascaran la casa y suavizan la entrada de cada pista. Se
+            generan en vivo, no son grabaciones en bucle: nunca se repiten, así que el oído no aprende un patrón que lo
+            despierte.
           </li>
           <li>
             <b>Movimiento = pausa.</b> Con el móvil sobre el colchón, si te mueves (señal de sueño ligero o

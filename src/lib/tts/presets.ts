@@ -175,7 +175,7 @@ Cuando te duermas, volverás a este barco. Esta noche, en tus sueños, navegas c
     blurb: 'Despegar suavemente y flotar sobre el mar al atardecer.',
     cue: 'flauta',
     styleId: 'cuento',
-    noise: 'pink',
+    noise: 'wind',
     notes: 'Vuelo sobre el mar al atardecer. Mi cuerpo es ligero, el aire tibio me sostiene, veo el horizonte naranja.',
     tracks: [
       {
@@ -199,7 +199,7 @@ Esta noche, cuando sueñes, vas a volar.`,
     blurb: 'Flotar en una nave, ver la Tierra azul y caminar entre estrellas.',
     cue: 'cristal',
     styleId: 'cosmos',
-    noise: 'brown',
+    noise: 'ambient',
     notes: 'Floto dentro de mi nave espacial. Por la ventana veo la Tierra azul. Salgo a caminar entre estrellas, en silencio absoluto.',
     tracks: [
       {
@@ -222,6 +222,7 @@ Esta noche, en tus sueños, viajas por el espacio.`,
     blurb: 'Soltar el cuerpo y la mente para dormir mejor.',
     cue: null,
     styleId: 'susurro',
+    noise: 'rain',
     notes: 'Mi cuerpo se suelta. Estoy a salvo. Respiro lento y profundo. Todo está en calma.',
     tracks: [
       {

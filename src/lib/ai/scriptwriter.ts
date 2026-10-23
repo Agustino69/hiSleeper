@@ -169,11 +169,14 @@ const OBJECTIVE_SCHEMA = {
 export function objectivePrompt(goal: Goal, idea: string): string {
   const styles = VOICE_STYLES.map((s) => `${s.id} (${s.label}: ${s.blurb})`).join('; ');
   const cues = CUE_SOUNDS.map((c) => `${c.id} (${c.label})`).join('; ');
+  const noises = NOISE_TYPES.filter((n) => n.id !== 'none')
+    .map((n) => `${n.id} (${n.label}: ${n.hint})`)
+    .join('; ');
   return [
     GOAL_GUIDE[goal],
     `Elige el estilo de voz que mejor encaje entre: ${styles}.`,
     `Elige la señal sonora entre: ${cues}; o «none» si es un mantra.`,
-    'Elige el ruido de fondo: pink (rosa, neutro), brown (grave), ocean (oleaje), white (blanco).',
+    `Elige el fondo sonoro que mejor ambiente la idea entre: ${noises}.`,
     allowedMarkup('supertonic'),
     goal === 'review' ? `Apuntes de la persona:\n«${idea.trim()}»` : `Idea de la persona:\n«${idea.trim()}»`,
   ].join('\n');

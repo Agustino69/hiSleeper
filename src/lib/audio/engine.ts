@@ -1,11 +1,14 @@
 import { db } from '../db';
 import type { CueSoundId, NoiseType, Track } from '../types';
 import { isNative, nativeVoiceList, speakNative, stopNativeSpeech, type VoiceInfo } from '../native';
-import { createNoiseBuffer, normalizeBuffer, renderCue } from './synth';
+import { normalizeBuffer, renderCue } from './synth';
+import { Soundscape } from './soundscape/dsp';
+import type { SoundscapeMessage } from './soundscape/soundscape.worklet';
+import workletUrl from './soundscape/soundscape.worklet.ts?worker&url';
 
 /**
  * Motor de audio: un AudioContext con dos buses.
- *   ruido de fondo ─────────────────────────────┐
+ *   fondo generativo (AudioWorklet) ────────────┐
  *   pistas → paso bajo (suaviza sibilantes) → compresor ─→ master → salida
  * El compresor evita picos que puedan despertarte.
  */
@@ -14,9 +17,9 @@ class AudioEngine {
   private master!: GainNode;
   private cueBus!: GainNode;
   private noiseGain!: GainNode;
-  private noiseSrc: AudioBufferSourceNode | null = null;
-  private lfo: OscillatorNode | null = null;
+  private scape: Promise<(scene: NoiseType) => void> | null = null;
   private noiseType: NoiseType = 'none';
+  private noiseToken = 0;
   private cueCache = new Map<CueSoundId, Promise<AudioBuffer>>();
   private trackCache = new Map<string, Promise<AudioBuffer>>();
   private playing = new Set<{ stop: () => void }>();
@@ -72,58 +75,60 @@ class AudioEngine {
     return this.ctx?.state === 'running';
   }
 
-  async setNoise(type: NoiseType, gain: number, fadeSec = 3) {
-    const ctx = await this.ensure();
-    const now = ctx.currentTime;
-    if (type !== this.noiseType) {
-      this.stopNoiseSource(fadeSec);
-      this.noiseType = type;
-      if (type !== 'none') {
-        const src = ctx.createBufferSource();
-        src.buffer = createNoiseBuffer(ctx, type === 'ocean' ? 'brown' : type);
-        src.loop = true;
-        const g = ctx.createGain();
-        g.gain.value = 1;
-        src.connect(g).connect(this.noiseGain);
-        if (type === 'ocean') {
-          // Oleaje: modulación lenta de la amplitud (~1 ola cada 9 s).
-          const lfo = ctx.createOscillator();
-          const depth = ctx.createGain();
-          lfo.frequency.value = 0.11;
-          depth.gain.value = 0.55;
-          g.gain.value = 0.6;
-          lfo.connect(depth).connect(g.gain);
-          lfo.start();
-          this.lfo = lfo;
+  /**
+   * El fondo no es una grabación: un AudioWorklet lo sintetiza muestra a muestra
+   * en el hilo de audio (lluvia, olas, viento…), así que nunca se repite.
+   * Si el navegador no tiene AudioWorklet, el mismo generador corre en un
+   * ScriptProcessor (más antiguo, en el hilo principal).
+   */
+  private soundscape(ctx: AudioContext, first: NoiseType): Promise<(scene: NoiseType) => void> {
+    if (!this.scape) {
+      this.scape = (async () => {
+        try {
+          await ctx.audioWorklet.addModule(workletUrl);
+          const node = new AudioWorkletNode(ctx, 'hisleeper-soundscape', {
+            numberOfInputs: 0,
+            outputChannelCount: [2],
+            processorOptions: { scene: first } satisfies SoundscapeMessage,
+          });
+          node.connect(this.noiseGain);
+          return (scene: NoiseType) => node.port.postMessage({ scene } satisfies SoundscapeMessage);
+        } catch (e) {
+          console.warn('AudioWorklet no disponible; uso ScriptProcessor', e);
+          const scape = new Soundscape(ctx.sampleRate);
+          scape.setScene(first);
+          const node = ctx.createScriptProcessor(4096, 0, 2);
+          node.onaudioprocess = (ev) => scape.render(ev.outputBuffer.getChannelData(0), ev.outputBuffer.getChannelData(1));
+          node.connect(this.noiseGain);
+          return (scene: NoiseType) => scape.setScene(scene);
         }
-        src.start();
-        this.noiseSrc = src;
-      }
+      })();
     }
-    this.noiseGain.gain.cancelScheduledValues(now);
-    this.noiseGain.gain.setValueAtTime(this.noiseGain.gain.value, now);
-    this.noiseGain.gain.linearRampToValueAtTime(type === 'none' ? 0 : gain, now + fadeSec);
+    return this.scape;
   }
 
-  private stopNoiseSource(fadeSec: number) {
-    const src = this.noiseSrc;
-    const lfo = this.lfo;
-    this.noiseSrc = null;
-    this.lfo = null;
-    if (!this.ctx) return;
-    const stopAt = this.ctx.currentTime + fadeSec + 0.1;
-    src?.stop(stopAt);
-    lfo?.stop(stopAt);
+  async setNoise(type: NoiseType, gain: number, fadeSec = 3) {
+    const ctx = await this.ensure();
+    const post = await this.soundscape(ctx, type);
+    const token = ++this.noiseToken;
+    if (type !== 'none') post(type);
+    this.noiseType = type;
+    this.rampNoise(type === 'none' ? 0 : gain, fadeSec);
+    // A silencio: primero baja el volumen y después se detiene la síntesis.
+    if (type === 'none') setTimeout(() => token === this.noiseToken && post('none'), fadeSec * 1000 + 100);
+  }
+
+  private rampNoise(to: number, sec: number) {
+    const now = this.ctx!.currentTime;
+    const g = this.noiseGain.gain;
+    g.cancelScheduledValues(now);
+    g.setValueAtTime(g.value, now);
+    g.linearRampToValueAtTime(to, now + sec);
   }
 
   async fadeOutNoise(sec: number) {
-    if (!this.ctx) return;
-    const now = this.ctx.currentTime;
-    this.noiseGain.gain.cancelScheduledValues(now);
-    this.noiseGain.gain.setValueAtTime(this.noiseGain.gain.value, now);
-    this.noiseGain.gain.linearRampToValueAtTime(0, now + sec);
-    this.stopNoiseSource(sec);
-    this.noiseType = 'none';
+    if (!this.ctx || this.noiseType === 'none') return;
+    await this.setNoise('none', 0, sec);
   }
 
   private cueBuffer(id: CueSoundId) {

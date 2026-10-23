@@ -10,7 +10,8 @@ export type CueSoundId =
   | 'madera'
   | 'arpa';
 
-export type NoiseType = 'none' | 'pink' | 'brown' | 'ocean' | 'white';
+/** Fondo sonoro generado en tiempo real (ver src/lib/audio/soundscape). */
+export type NoiseType = 'none' | 'pink' | 'brown' | 'white' | 'ocean' | 'rain' | 'wind' | 'fire' | 'night' | 'ambient';
 
 export type TrackKind = 'recording' | 'file' | 'tts' | 'voice';
 
